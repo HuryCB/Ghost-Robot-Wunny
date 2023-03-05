@@ -785,6 +785,12 @@ local function onbecameghost(inst)
 		end
 	end
 
+	inst.components.upgrademoduleowner:PopAllModules()
+	inst.components.upgrademoduleowner:SetChargeLevel(0)
+
+	stop_moisturetracking(inst)
+	inst.components.timer:StopTimer(HUNGERDRAIN_TIMERNAME)
+	inst.components.timer:StopTimer(CHARGEREGEN_TIMERNAME)
 
 	if inst._gears_eaten > 0 then
 		local dropgears = math.random(math.floor(inst._gears_eaten / 3), math.ceil(inst._gears_eaten / 2))
