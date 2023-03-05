@@ -13,6 +13,11 @@ local prefabsItens = {
 	"carrot"
 }
 
+local CHARGEREGEN_TIMERNAME = "chargeregenupdate"
+local MOISTURETRACK_TIMERNAME = "moisturetrackingupdate"
+local HUNGERDRAIN_TIMERNAME = "hungerdraintick"
+local HEATSTEAM_TIMERNAME = "heatsteam_tick"
+
 TUNING.WUNNY_HEALTH = 65
 TUNING.WUNNY_HUNGER = 140
 TUNING.WUNNY_SANITY = 140
@@ -238,6 +243,82 @@ local function OnBondLevelDirty(inst)
 					inst.HUD.wendyflowerover:Play(bond_level)
 				end
 			end
+		end
+	end
+end
+
+
+-- Wetness/Moisture/Rain ---------------------------------------------------------------
+local function initiate_moisture_update(inst)
+	if not inst.components.timer:TimerExists(MOISTURETRACK_TIMERNAME) then
+		inst.components.timer:StartTimer(MOISTURETRACK_TIMERNAME, TUNING.WX78_MOISTUREUPDATERATE * FRAMES)
+	end
+end
+
+local function stop_moisturetracking(inst)
+	inst.components.timer:StopTimer(MOISTURETRACK_TIMERNAME)
+
+	inst._moisture_steps = 0
+end
+
+local function moisturetrack_update(inst)
+	local current_moisture = inst.components.moisture:GetMoisture()
+	if current_moisture > TUNING.WX78_MINACCEPTABLEMOISTURE then
+		-- The update will loop until it is stopped by going under the acceptable moisture level.
+		initiate_moisture_update(inst)
+	end
+
+	if inst:HasTag("moistureimmunity") then
+		return
+	end
+
+	inst._moisture_steps = inst._moisture_steps + 1
+
+	local x, y, z = inst.Transform:GetWorldPosition()
+	SpawnPrefab("sparks").Transform:SetPosition(x, y + 1 + math.random() * 1.5, z)
+
+	if inst._moisture_steps >= TUNING.WX78_MOISTURESTEPTRIGGER then
+		local damage_per_second = easing.inSine(
+			current_moisture - TUNING.WX78_MINACCEPTABLEMOISTURE,
+			TUNING.WX78_MIN_MOISTURE_DAMAGE,
+			TUNING.WX78_PERCENT_MOISTURE_DAMAGE,
+			inst.components.moisture:GetMaxMoisture() - TUNING.WX78_MINACCEPTABLEMOISTURE
+		)
+		local seconds_per_update = TUNING.WX78_MOISTUREUPDATERATE / 30
+
+		inst.components.health:DoDelta(inst._moisture_steps * seconds_per_update * damage_per_second, false, "water")
+		inst.components.upgrademoduleowner:AddCharge(-1)
+		inst._moisture_steps = 0
+
+		SpawnPrefab("wx78_big_spark"):AlignToTarget(inst)
+
+		inst.sg:GoToState("hit")
+	end
+
+	-- Send a message for the UI.
+	inst:PushEvent("do_robot_spark")
+	if inst.player_classified ~= nil then
+		inst.player_classified.uirobotsparksevent:push()
+	end
+end
+
+local function OnWetnessChanged(inst, data)
+	if not (inst.components.health ~= nil and inst.components.health:IsDead()) then
+		if data.new >= TUNING.WX78_COLD_ICEMOISTURE and inst.components.upgrademoduleowner:GetModuleTypeCount("cold") > 0 then
+			inst.components.moisture:SetMoistureLevel(0)
+
+			local x, y, z = inst.Transform:GetWorldPosition()
+			for i = 1, TUNING.WX78_COLD_ICECOUNT do
+				local ice = SpawnPrefab("ice")
+				ice.Transform:SetPosition(x, y, z)
+				Launch(ice, inst)
+			end
+
+			stop_moisturetracking(inst)
+		elseif data.new > TUNING.WX78_MINACCEPTABLEMOISTURE and data.old <= TUNING.WX78_MINACCEPTABLEMOISTURE then
+			initiate_moisture_update(inst)
+		elseif data.new <= TUNING.WX78_MINACCEPTABLEMOISTURE and data.old > TUNING.WX78_MINACCEPTABLEMOISTURE then
+			stop_moisturetracking(inst)
 		end
 	end
 end
@@ -1022,80 +1103,6 @@ local function AddTemperatureModuleLeaning(inst, leaning_change)
 	end
 end
 
--- Wetness/Moisture/Rain ---------------------------------------------------------------
-local function initiate_moisture_update(inst)
-	if not inst.components.timer:TimerExists(MOISTURETRACK_TIMERNAME) then
-		inst.components.timer:StartTimer(MOISTURETRACK_TIMERNAME, TUNING.WX78_MOISTUREUPDATERATE * FRAMES)
-	end
-end
-
-local function stop_moisturetracking(inst)
-	inst.components.timer:StopTimer(MOISTURETRACK_TIMERNAME)
-
-	inst._moisture_steps = 0
-end
-
-local function moisturetrack_update(inst)
-	local current_moisture = inst.components.moisture:GetMoisture()
-	if current_moisture > TUNING.WX78_MINACCEPTABLEMOISTURE then
-		-- The update will loop until it is stopped by going under the acceptable moisture level.
-		initiate_moisture_update(inst)
-	end
-
-	if inst:HasTag("moistureimmunity") then
-		return
-	end
-
-	inst._moisture_steps = inst._moisture_steps + 1
-
-	local x, y, z = inst.Transform:GetWorldPosition()
-	SpawnPrefab("sparks").Transform:SetPosition(x, y + 1 + math.random() * 1.5, z)
-
-	if inst._moisture_steps >= TUNING.WX78_MOISTURESTEPTRIGGER then
-		local damage_per_second = easing.inSine(
-			current_moisture - TUNING.WX78_MINACCEPTABLEMOISTURE,
-			TUNING.WX78_MIN_MOISTURE_DAMAGE,
-			TUNING.WX78_PERCENT_MOISTURE_DAMAGE,
-			inst.components.moisture:GetMaxMoisture() - TUNING.WX78_MINACCEPTABLEMOISTURE
-		)
-		local seconds_per_update = TUNING.WX78_MOISTUREUPDATERATE / 30
-
-		inst.components.health:DoDelta(inst._moisture_steps * seconds_per_update * damage_per_second, false, "water")
-		inst.components.upgrademoduleowner:AddCharge(-1)
-		inst._moisture_steps = 0
-
-		SpawnPrefab("wx78_big_spark"):AlignToTarget(inst)
-
-		inst.sg:GoToState("hit")
-	end
-
-	-- Send a message for the UI.
-	inst:PushEvent("do_robot_spark")
-	if inst.player_classified ~= nil then
-		inst.player_classified.uirobotsparksevent:push()
-	end
-end
-
-local function OnWetnessChanged(inst, data)
-	if not (inst.components.health ~= nil and inst.components.health:IsDead()) then
-		if data.new >= TUNING.WX78_COLD_ICEMOISTURE and inst.components.upgrademoduleowner:GetModuleTypeCount("cold") > 0 then
-			inst.components.moisture:SetMoistureLevel(0)
-
-			local x, y, z = inst.Transform:GetWorldPosition()
-			for i = 1, TUNING.WX78_COLD_ICECOUNT do
-				local ice = SpawnPrefab("ice")
-				ice.Transform:SetPosition(x, y, z)
-				Launch(ice, inst)
-			end
-
-			stop_moisturetracking(inst)
-		elseif data.new > TUNING.WX78_MINACCEPTABLEMOISTURE and data.old <= TUNING.WX78_MINACCEPTABLEMOISTURE then
-			initiate_moisture_update(inst)
-		elseif data.new <= TUNING.WX78_MINACCEPTABLEMOISTURE and data.old > TUNING.WX78_MINACCEPTABLEMOISTURE then
-			stop_moisturetracking(inst)
-		end
-	end
-end
 
 
 local function SetSkin(inst)
