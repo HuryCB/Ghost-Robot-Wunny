@@ -776,6 +776,39 @@ local function onbecameghost(inst)
 	stop_moisturetracking(inst)
 	inst.components.timer:StopTimer(HUNGERDRAIN_TIMERNAME)
 	inst.components.timer:StopTimer(CHARGEREGEN_TIMERNAME)
+
+	inst.components.ghostlybond:Recall()
+	inst.components.ghostlybond:PauseBonding()
+	for k, v in pairs(inst.components.petleash:GetPets()) do
+		if v:HasTag("shadowminion") and v._killtask == nil then
+			v._killtask = v:DoTaskInTime(math.random(), KillPet)
+		end
+	end
+
+
+	if inst._gears_eaten > 0 then
+		local dropgears = math.random(math.floor(inst._gears_eaten / 3), math.ceil(inst._gears_eaten / 2))
+		local x, y, z = inst.Transform:GetWorldPosition()
+		for i = 1, dropgears do
+			local gear = SpawnPrefab("gears")
+			if gear ~= nil then
+				if gear.Physics ~= nil then
+					local speed = 2 + math.random()
+					local angle = math.random() * 2 * PI
+					gear.Physics:Teleport(x, y + 1, z)
+					gear.Physics:SetVel(speed * math.cos(angle), speed * 3, speed * math.sin(angle))
+				else
+					gear.Transform:SetPosition(x, y, z)
+				end
+
+				if gear.components.propagator ~= nil then
+					gear.components.propagator:Delay(5)
+				end
+			end
+		end
+
+		inst._gears_eaten = 0
+	end
 end
 
 -- When loading or spawning the character
@@ -1438,46 +1471,10 @@ local function OnReadFn(inst, book)
 	end
 end
 
-local function OnDeath(inst)
-	inst.components.ghostlybond:Recall()
-	inst.components.ghostlybond:PauseBonding()
-	for k, v in pairs(inst.components.petleash:GetPets()) do
-		if v:HasTag("shadowminion") and v._killtask == nil then
-			v._killtask = v:DoTaskInTime(math.random(), KillPet)
-		end
-	end
+-- local function OnDeath(inst)
+-- 	--transferido para onbecameghost
 
-	inst.components.upgrademoduleowner:PopAllModules()
-	inst.components.upgrademoduleowner:SetChargeLevel(0)
-
-	stop_moisturetracking(inst)
-	inst.components.timer:StopTimer(HUNGERDRAIN_TIMERNAME)
-	inst.components.timer:StopTimer(CHARGEREGEN_TIMERNAME)
-
-	if inst._gears_eaten > 0 then
-		local dropgears = math.random(math.floor(inst._gears_eaten / 3), math.ceil(inst._gears_eaten / 2))
-		local x, y, z = inst.Transform:GetWorldPosition()
-		for i = 1, dropgears do
-			local gear = SpawnPrefab("gears")
-			if gear ~= nil then
-				if gear.Physics ~= nil then
-					local speed = 2 + math.random()
-					local angle = math.random() * 2 * PI
-					gear.Physics:Teleport(x, y + 1, z)
-					gear.Physics:SetVel(speed * math.cos(angle), speed * 3, speed * math.sin(angle))
-				else
-					gear.Transform:SetPosition(x, y, z)
-				end
-
-				if gear.components.propagator ~= nil then
-					gear.components.propagator:Delay(5)
-				end
-			end
-		end
-
-		inst._gears_eaten = 0
-	end
-end
+-- end
 
 local function OnEat(inst, food)
 	if food ~= nil and food.components.edible ~= nil then
@@ -1748,7 +1745,18 @@ local function OnHealthDelta(inst, data)
 end
 
 local function RoyalUpgrade(inst)
+
 	print("caiu no royalUpgrade")
+
+	if inst == nil or inst.components == nil or inst.components.health == nil or inst.components.health:IsDead() or inst:HasTag("playerghost")
+	then
+		return
+	end
+	print(inst.components.health:IsDead() or inst:HasTag("playerghost"))
+	inst.components.health:SetMaxHealth(inst.components.health.maxhealth + 50)
+	inst.components.hunger:SetMax(inst.components.hunger.max + 50)
+	inst.components.sanity:SetMax(inst.components.sanity.max + 50)
+
 	local current_health = inst.health_percent or inst.components.health:GetPercent()
 	inst.health_percent = nil
 
@@ -1757,11 +1765,6 @@ local function RoyalUpgrade(inst)
 
 	local current_sanity = inst.sanity_percent or inst.components.sanity:GetPercent()
 	inst.sanity_percent = nil
-
-
-	inst.components.health:SetMaxHealth(inst.components.health.maxhealth + 50)
-	inst.components.hunger:SetMax(inst.components.hunger.max + 50)
-	inst.components.sanity:SetMax(inst.components.sanity.max + 50)
 
 	inst.components.health:SetPercent(current_health)
 	inst.components.hunger:SetPercent(current_hunger)
@@ -1842,7 +1845,7 @@ local master_postinit = function(inst)
 
 	inst._onpetlost = function(pet) inst.components.sanity:RemoveSanityPenalty(pet) end
 
-	inst:ListenForEvent("death", OnDeath)
+	inst:ListenForEvent("death", onbecameghost)
 
 	inst.components.foodaffinity:AddFoodtypeAffinity(FOODTYPE.VEGGIE, 1.33)
 	inst.components.foodaffinity:AddPrefabAffinity("carrot", 1.5)
@@ -2115,8 +2118,8 @@ local master_postinit = function(inst)
 	inst.components.heater:SetThermics(false, false)
 	inst.components.heater.heatfn = GetThermicTemperatureFn
 
-	inst:ListenForEvent("death", OnDeath)
-	inst:ListenForEvent("ms_playerreroll", OnDeath)
+	inst:ListenForEvent("death", onbecameghost)
+	inst:ListenForEvent("ms_playerreroll", onbecameghost)
 	inst:ListenForEvent("moisturedelta", OnWetnessChanged)
 	inst:ListenForEvent("startstarving", OnStartStarving)
 	inst:ListenForEvent("stopstarving", OnStopStarving)
@@ -2141,11 +2144,13 @@ local master_postinit = function(inst)
 		TheWorld)
 	update_sisturn_state(inst)
 
-	inst:ListenForEvent("onbunnykingcreated", function() RoyalUpgrade(inst) end, TheWorld)
+	-- inst:ListenForEvent("onbunnykingcreated", function()  end, TheWorld)
 	inst:ListenForEvent("onbunnykingcreated", function(inst, data)
-		if data == nil or data.king == nil then
+		if inst.king ~= nil or data == nil or data.king == nil then
 			return
 		end
+
+		RoyalUpgrade(inst)
 		inst.king = data.king
 		TheWorld:AddTag("hasbunnyking")
 	end, TheWorld)

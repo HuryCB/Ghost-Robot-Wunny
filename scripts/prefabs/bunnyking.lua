@@ -80,7 +80,7 @@ local function SpawnSnake(inst)
 end
 
 local function OnDeath(inst)
-    -- TheWorld:PushEvent("onbunnykingdestroyed")
+    TheWorld:PushEvent("onbunnykingdestroyed")
     print("morreu, tentando spawnar cobra")
     -- print(lootdropper)
     -- print(inst.components.inventory.lootdropper)--pode crashar
