@@ -712,6 +712,10 @@ local function onload(inst, data)
 	end
 
 	if data ~= nil then
+		if data.king ~= nil then
+			inst.king = data.king
+			TheWorld:AddTag("hasbunnyking")
+		end
 		if data.woby ~= nil then
 			inst._woby_spawntask:Cancel()
 			inst._woby_spawntask = nil
@@ -942,6 +946,7 @@ local common_postinit = function(inst)
 end
 
 local function OnSave(inst, data)
+	data.king = inst.king
 	data.woby = inst.woby ~= nil and inst.woby:GetSaveRecord() or nil
 	data.buckdamage = inst._wobybuck_damage > 0 and inst._wobybuck_damage or nil
 	data.science_bonus = inst.components.builder.science_bonus
@@ -1738,23 +1743,22 @@ end
 local function RoyalUpgrade(inst)
 	print("caiu no royalUpgrade")
 	local current_health = inst.health_percent or inst.components.health:GetPercent()
-    inst.health_percent = nil
+	inst.health_percent = nil
 
-    local current_hunger = inst.hunger_percent or inst.components.hunger:GetPercent()
-    inst.hunger_percent = nil
+	local current_hunger = inst.hunger_percent or inst.components.hunger:GetPercent()
+	inst.hunger_percent = nil
 
-    local current_sanity = inst.sanity_percent or inst.components.sanity:GetPercent()
-    inst.sanity_percent = nil
+	local current_sanity = inst.sanity_percent or inst.components.sanity:GetPercent()
+	inst.sanity_percent = nil
 
-   	
-	inst.components.health:SetMaxHealth(inst.components.health.maxhealth+50)
-	inst.components.hunger:SetMax(inst.components.hunger.max+50)
-	inst.components.sanity:SetMax(inst.components.sanity.max+50)
 
-    inst.components.health:SetPercent(current_health)
-    inst.components.hunger:SetPercent(current_hunger)
-    inst.components.sanity:SetPercent(current_sanity)
+	inst.components.health:SetMaxHealth(inst.components.health.maxhealth + 50)
+	inst.components.hunger:SetMax(inst.components.hunger.max + 50)
+	inst.components.sanity:SetMax(inst.components.sanity.max + 50)
 
+	inst.components.health:SetPercent(current_health)
+	inst.components.hunger:SetPercent(current_hunger)
+	inst.components.sanity:SetPercent(current_sanity)
 end
 
 local master_postinit = function(inst)
@@ -1764,6 +1768,7 @@ local master_postinit = function(inst)
 	-- print("Runspeed ", inst.components.locomotor:GetRunSpeed())
 	-- print("Multspeed ", inst.components.locomotor:GetSpeedMultiplier())
 	-- print("Walkspeed ", inst.components.locomotor:GetWalkSpeed())
+
 
 	--Wanda	
 	inst:AddComponent("positionalwarp")
@@ -2130,6 +2135,17 @@ local master_postinit = function(inst)
 	update_sisturn_state(inst)
 
 	inst:ListenForEvent("onbunnykingcreated", function() RoyalUpgrade(inst) end, TheWorld)
+	inst:ListenForEvent("onbunnykingcreated", function(inst, data)
+		if data == nil or data.king == nil then
+			return
+		end
+		inst.king = data.king
+		TheWorld:AddTag("hasbunnyking")
+	end, TheWorld)
+	inst:ListenForEvent("onbunnykingdestroyed", function(inst, data)
+		inst.king = nil
+		TheWorld:RemoveTag("hasbunnyking")
+	end)
 end
 
 return MakePlayerCharacter("wunny", prefabs, assets, common_postinit, master_postinit, prefabs, prefabsItens)

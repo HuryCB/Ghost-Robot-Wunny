@@ -16,9 +16,9 @@ local prefabs =
 local function getstatus(inst)
     return (inst:HasTag("burnt") and "BURNT")
         or (inst.lightson and
-            inst.components.spawner ~= nil and
-            inst.components.spawner:IsOccupied() and
-            "FULL")
+        inst.components.spawner ~= nil and
+        inst.components.spawner:IsOccupied() and
+        "FULL")
         or nil
 end
 
@@ -52,9 +52,7 @@ local function onhammered(inst, worker)
         inst.doortask:Cancel()
         inst.doortask = nil
     end
-    if inst.components.spawner ~= nil and inst.components.spawner:IsOccupied() then
-        inst.components.spawner:ReleaseChild()
-    end
+
     inst.components.lootdropper:DropLoot()
     local fx = SpawnPrefab("collapse_big")
     fx.Transform:SetPosition(inst.Transform:GetWorldPosition())
@@ -76,7 +74,6 @@ end
 
 local function onstopcavedaydoortask(inst)
     inst.doortask = nil
-    inst.components.spawner:ReleaseChild()
 end
 
 -- local function OnStopCaveDay(inst)
@@ -92,7 +89,6 @@ end
 local function onstartdaydoortask(inst)
     inst.doortask = nil
     if not inst:HasTag("burnt") then
-        inst.components.spawner:ReleaseChild()
     end
 end
 
@@ -111,7 +107,6 @@ local function OnStartDay(inst)
     --print(inst, "OnStartDay")
     if not inst:HasTag("burnt")
         and inst.components.spawner:IsOccupied() then
-
         if inst.doortask ~= nil then
             inst.doortask:Cancel()
         end
@@ -125,7 +120,6 @@ local function SpawnCheckCaveDay(inst)
     if inst.components.spawner ~= nil and inst.components.spawner:IsOccupied() then
         -- if not TheWorld.state.iscaveday or
         -- if (inst.components.burnable ~= nil and inst.components.burnable:IsBurning()) then
-            inst.components.spawner:ReleaseChild()
         -- end
     end
 end
@@ -136,47 +130,25 @@ local function oninit(inst)
         inst.components.spawner.child == nil and
         inst.components.spawner.childname ~= nil and
         not inst.components.spawner:IsSpawnPending() then
-        local child = SpawnPrefab(inst.components.spawner.childname)
-        if child ~= nil then
+        if not TheWorld:HasTag("hasbunnyking")
+        then
+            local child = SpawnPrefab(inst.components.spawner.childname)
 
-            -- local hasHat = child.components.inventory:GetEquippedItem(EQUIPSLOTS.HEAD)
-            -- if not hasHat then
-            --     print("n tem chapeu")
-            --     print(child.components.inventory:GetEquippedItem(EQUIPSLOTS.HEAD))
-            --     local hat = SpawnPrefab("ruinshat")
-            --     print("tentando spawnar chapeu")
-            --     if hat then
-            --         child.components.inventory:Equip(hat)
-            --     end
-            -- end
-
-            local hasArmor = child.components.inventory:GetEquippedItem(EQUIPSLOTS.BODY)
-            if not hasArmor then
-                print("n tem armor")
-                print(child.components.inventory:GetEquippedItem(EQUIPSLOTS.BODY))
+            if child ~= nil then
                 local armor = SpawnPrefab("armorwood")
                 if armor then
                     child.components.inventory:Equip(armor)
                 end
-            end
 
-            -- local hasWepon = child.components.inventory:GetEquippedItem(EQUIPSLOTS.HANDS)
-            -- if not hasWepon then
-            --     print("n tem arma")
-            --     print(child.components.inventory:GetEquippedItem(EQUIPSLOTS.HANDS))
-            --     local spear = SpawnPrefab("cane")
-            --     if spear then
-            --         child.components.inventory:Equip(spear)
-            --     end
-            -- end
-            TheWorld:PushEvent("onbunnykingcreated")
-            inst.components.spawner:TakeOwnership(child)
-            inst.components.spawner:GoHome(child)
-            inst.components.spawner:ReleaseChild()
+                TheWorld:PushEvent("onbunnykingcreated", { king = inst })
+                inst.components.spawner:TakeOwnership(child)
+                inst.components.spawner:GoHome(child)
+                inst.components.spawner:ReleaseChild()
+                TheWorld:AddTag("hasbunnyking")
+            end
         end
     end
     if inst.components.spawner ~= nil and inst.components.spawner:IsOccupied() then
-        inst.components.spawner:ReleaseChild()
     end
 end
 
@@ -196,9 +168,6 @@ local function onbuilt(inst)
     inst.AnimState:PlayAnimation("place")
     inst.AnimState:PushAnimation("idle")
     inst.SoundEmitter:PlaySound("dontstarve/common/rabbit_hutch_craft")
-    if inst.components.spawner ~= nil and inst.components.spawner:IsOccupied() then
-        inst.components.spawner:ReleaseChild()
-    end
 end
 
 local function onburntup(inst)
@@ -217,9 +186,7 @@ local function onburntup(inst)
 end
 
 local function onignite(inst)
-    if inst.components.spawner ~= nil and inst.components.spawner:IsOccupied() then
-        inst.components.spawner:ReleaseChild()
-    end
+
 end
 
 local function OnPreLoad(inst, data)

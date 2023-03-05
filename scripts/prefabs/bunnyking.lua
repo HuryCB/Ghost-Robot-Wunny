@@ -129,7 +129,7 @@ end
 local function ClearObservedBeardlord(inst)
     inst.clearbeardlordtask = nil
     if not IsForcedNightmare(inst) then
-        inst.beardlord = nil
+    inst.beardlord = nil
     end
 end
 
@@ -247,29 +247,29 @@ end
 local RETARGET_MUST_TAGS = { "_combat", "_health" }
 local RETARGET_ONEOF_TAGS = { "monster", "player", "pirate" }
 local function NormalRetargetFn(inst)
-    return not inst:IsInLimbo()
-        and FindEntity(
-            inst,
-            TUNING.PIG_TARGET_DIST,
-            function(guy)
-                return nil
-                -- inst.components.combat:CanTarget(guy)
-                -- and (guy:HasTag("monster")
-                --     or guy:HasTag("wonkey")
-                --     or guy:HasTag("pirate")
-                --     or (guy.components.inventory ~= nil and
-                --         guy:IsNear(inst, TUNING.BUNNYMAN_SEE_MEAT_DIST) and
-                --         guy.components.inventory:FindItem(is_meat) ~= nil))
-            end,
-            RETARGET_MUST_TAGS, -- see entityreplica.lua
-            nil,
-            RETARGET_ONEOF_TAGS
-        )
-        or nil
+    -- return not inst:IsInLimbo()
+    --     and FindEntity(
+    --         inst,
+    --         TUNING.PIG_TARGET_DIST,
+    --         function(guy)
+    --             return nil
+    --             -- inst.components.combat:CanTarget(guy)
+    --             -- and (guy:HasTag("monster")
+    --             --     or guy:HasTag("wonkey")
+    --             --     or guy:HasTag("pirate")
+    --             --     or (guy.components.inventory ~= nil and
+    --             --         guy:IsNear(inst, TUNING.BUNNYMAN_SEE_MEAT_DIST) and
+    --             --         guy.components.inventory:FindItem(is_meat) ~= nil))
+    --         end,
+    --         RETARGET_MUST_TAGS, -- see entityreplica.lua
+    --         nil,
+    --         RETARGET_ONEOF_TAGS
+    --     )
+    --     or nil
 end
 
 local function NormalKeepTargetFn(inst, target)
-    return not (target.sg ~= nil and target.sg:HasStateTag("hiding")) and inst.components.combat:CanTarget(target)
+    -- return not (target.sg ~= nil and target.sg:HasStateTag("hiding")) and inst.components.combat:CanTarget(target)
 end
 
 local function giveupstring()
@@ -339,7 +339,7 @@ local function OnSpawned(inst)
     end
 
     print("pushing event")
-    TheWorld:PushEvent("onbunnykingcreated")
+    -- TheWorld:PushEvent("onbunnykingcreated", {king = inst})
 end
 
 local function TradeItem(inst)
@@ -413,6 +413,9 @@ local function TradeItem(inst)
     item:Remove()
 end
 
+local function AnnounceKingAlive(inst)
+    TheWorld:PushEvent("onbunnykingcreated", { king = inst })
+end
 
 local function HungerDelta(inst, data)
     if data.newpercent then
@@ -429,14 +432,19 @@ local function HungerDelta(inst, data)
                 inst.components.talker:Say(STRINGS.MERM_KING_TALK_HUNGER_STARVING)
             elseif data.newpercent < 0.1 then
                 inst.components.talker:Say(STRINGS.MERM_KING_TALK_HUNGER_CLOSE_STARVING)
+                AnnounceKingAlive(inst)
             elseif data.newpercent < 0.25 then
                 inst.components.talker:Say(STRINGS.MERM_KING_TALK_HUNGER_VERY_HUNGRY)
+                AnnounceKingAlive(inst)
             elseif data.newpercent < 0.5 then
                 inst.components.talker:Say(STRINGS.MERM_KING_TALK_HUNGER_HUNGRY)
+                AnnounceKingAlive(inst)
             elseif data.newpercent < 0.95 then
                 inst.components.talker:Say(STRINGS.MERM_KING_TALK_HUNGER_HUNGRISH)
+                AnnounceKingAlive(inst)
             else
                 inst.components.talker:Say(STRINGS.MERM_KING_TALK_HUNGER_FULL)
+                AnnounceKingAlive(inst)
             end
 
             local time = Remap(data.newpercent, 1,0, 30,8)
@@ -503,7 +511,7 @@ local function fn()
     inst:AddComponent("talker")
     inst.components.talker.fontsize = 24
     inst.components.talker.font = TALKINGFONT
-    inst.components.talker.offset = Vector3(0, -500, 0)
+    inst.components.talker.offset = Vector3(0, -350, 0)
     inst.components.talker:MakeChatter()
 
     inst.entity:SetPristine()
@@ -589,8 +597,8 @@ local function fn()
 
     ------------------------------------------
 
-    inst:AddComponent("sanityaura")
-    inst.components.sanityaura.aurafn = CalcSanityAura
+    -- inst:AddComponent("sanityaura")
+    -- inst.components.sanityaura.aurafn = CalcSanityAura
 
     ------------------------------------------
 
@@ -607,7 +615,7 @@ local function fn()
     ------------------------------------------
 
     inst:ListenForEvent("attacked", OnAttacked)
-    inst:ListenForEvent("newcombattarget", OnNewTarget)
+    -- inst:ListenForEvent("newcombattarget", OnNewTarget)
 
     -- inst.components.sleeper:SetResistance(2)
     -- inst.components.sleeper.sleeptestfn = NocturnalSleepTest
@@ -615,8 +623,6 @@ local function fn()
 
     inst.components.combat:SetDefaultDamage(TUNING.BUNNYMAN_DAMAGE)
     inst.components.combat:SetAttackPeriod(TUNING.BUNNYMAN_ATTACK_PERIOD)
-    inst.components.combat:SetKeepTargetFunction(NormalKeepTargetFn)
-    inst.components.combat:SetRetargetFunction(3, NormalRetargetFn)
 
     inst.components.locomotor.runspeed = 0
     inst.components.locomotor.walkspeed = 0

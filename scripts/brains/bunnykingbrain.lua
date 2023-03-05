@@ -143,7 +143,7 @@ function BunnykingBrain:OnStart()
             WhileNode(function() return self.inst.components.health:GetPercent() < TUNING.BUNNYMAN_PANIC_THRESH end, "LowHealth",
                 ChattyNode(self.inst, "RABBIT_RETREAT",
                     RunAway(self.inst, "scarytoprey", SEE_PLAYER_DIST, STOP_RUN_DIST))),
-            ChaseAndAttack(self.inst, MAX_CHASE_TIME, MAX_CHASE_DIST),
+            -- ChaseAndAttack(self.inst, MAX_CHASE_TIME, MAX_CHASE_DIST),
             WhileNode(function() return IsHomeOnFire(self.inst) end, "OnFire",
                 ChattyNode(self.inst, "RABBIT_PANICHOUSEFIRE",
                     Panic(self.inst))),

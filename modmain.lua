@@ -1,4 +1,5 @@
 PrefabFiles = {
+    -- "bunnykingmanager",
     "wunny",
     "wunny_none",
     "rabbithole_placer",
@@ -36,6 +37,7 @@ PrefabFiles = {
     "spiderbunny",
     "bunnybat",
     "containerbunnyman",
+
 
     -- "wurt_turf_marsh",
     -- "modhats",
@@ -129,6 +131,7 @@ local TECH = GLOBAL.TECH
 local _G = GLOBAL
 local ACTIONS = GLOBAL.ACTIONS
 local ActionHandler = GLOBAL.ActionHandler
+-- local BunnyKingManager = require("components/bunnykingmanager")
 -- _G.speedMultiplier = 1
 
 modimport("strings.lua")
@@ -239,6 +242,14 @@ AddPrefabPostInit("world_network", function(inst)
         containers.MAXITEMSLOTS = MAXITEMSLOTS
     end
 end)
+
+-- AddPrefabPostInit("cave", function(inst)
+--     inst:AddComponent("bunnykingmanager")
+-- end)
+
+-- AddPrefabPostInit("forest", function(inst)
+--     inst:AddComponent("bunnykingmanager")
+-- end)
 
 --------------------------------------------------------------------------
 --[[ slingshot ]]
@@ -1032,14 +1043,23 @@ AddStategraphPostInit("wilson", function(sg)
                 return
             end
 
+
             if inst:HasTag("wunny") then
                 inst.components.hunger:DoDelta(TUNING.WUNNY_QUICK_ACTION_HUNGER)
                 return "quickeat"
             end
 
-            return (obj.components.soul ~= nil and "eat")
-                or (obj.components.edible.foodtype == FOODTYPE.MEAT and "eat")
-                or "quickeat"
+            if obj.components.soul ~= nil
+            then
+                return "eat"
+            end
+
+            if FOODTYPE ~= nil and FOODTYPE.MEAT ~= nil and obj.components.edible.foodtype == FOODTYPE.MEAT
+            then
+                return "eat"
+            end
+
+            return "quickeat"
         end)
     sg.actionhandlers[GLOBAL.ACTIONS.HEAL] = GLOBAL.ActionHandler(GLOBAL.ACTIONS.HEAL, function(inst, action)
         if inst:HasTag("wunny") then
