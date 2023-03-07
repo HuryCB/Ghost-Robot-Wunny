@@ -891,6 +891,32 @@ local function onload(inst, data)
 			inst._gears_eaten = (inst._gears_eaten or 0) + data.level
 		end
 
+		if data.maxHealth ~= nil then
+			inst.components.health:SetMaxHealth(data.maxHealth)
+		end
+		if data.maxHunger ~= nil then
+			inst.components.hunger:SetMax(data.maxHunger)
+		end
+		if data.maxSanity ~= nil then
+			inst.components.sanity:SetMax(data.maxSanity)
+		end
+		
+	
+		
+	
+		
+		--WURT 
+		if data.health_percent then
+            inst.health_percent = data.health_percent
+        end
+
+        if data.sanity_percent then
+            inst.sanity_percent = data.sanity_percent
+        end
+
+        if data.hunger_percent then
+            inst.hunger_percent = data.hunger_percent
+        end
 		-- WX-78 needs to manually save/load health, hunger, and sanity, in case their maxes
 		-- were modified by upgrade circuits, because those components only save current,
 		-- and that gets overridden by the default max values during construction.
@@ -907,6 +933,8 @@ local function onload(inst, data)
 		if data._wx78_hunger then
 			inst.components.hunger.current = data._wx78_hunger
 		end
+
+		
 	end
 
 	if data ~= nil then
@@ -1066,7 +1094,12 @@ local common_postinit = function(inst)
 end
 
 local function OnSave(inst, data)
-	data.king = inst.king
+	print("tentando salvar king")
+	-- if inst.king ~= nil then
+	print("salvando king")
+	data.king = inst.king ~= nil and inst.woby:GetSaveRecord() or nil
+	-- end
+	print("supostamente salvou king")
 	data.woby = inst.woby ~= nil and inst.woby:GetSaveRecord() or nil
 	data.buckdamage = inst._wobybuck_damage > 0 and inst._wobybuck_damage or nil
 	data.science_bonus = inst.components.builder.science_bonus
@@ -1084,12 +1117,22 @@ local function OnSave(inst, data)
 	-- and that gets overridden by the default max values during construction.
 	-- So, if we wait to re-apply them in our OnLoad, we will have them properly
 	-- (as entity OnLoad runs after component OnLoads)
+	
+	data.health_percent = inst.health_percent or inst.components.health:GetPercent()
+    data.sanity_percent = inst.sanity_percent or inst.components.sanity:GetPercent()
+    data.hunger_percent = inst.hunger_percent or inst.components.hunger:GetPercent()
+
 	data._wx78_health = inst.components.health.currenthealth
 	data._wx78_sanity = inst.components.sanity.current
 	data._wx78_hunger = inst.components.hunger.current
+
+	data.maxHealth = inst.components.health.maxhealth
+	data.maxSanity = inst.components.sanity.max
+	data.maxHunger = inst.components.hunger.max
 	if inst.questghost ~= nil then
 		data.questghost = inst.questghost:GetSaveRecord()
 	end
+
 end
 
 
@@ -1750,18 +1793,22 @@ local function OnHealthDelta(inst, data)
 	end
 end
 
-local function RoyalUpgrade(inst)
-
-	print("caiu no royalUpgrade")
-
+local function UpdateStats(inst, healthAmount, hungerAmount, sanityAmount)
+	print("antes do updatestats")
+	-- print(inst == nil)
+	-- print(inst.components == nil)
+	-- print(inst.components.health == nil)
+	-- print(inst.components.health:IsDead())
+	-- print(inst:HasTag("playerghost"))
 	if inst == nil or inst.components == nil or inst.components.health == nil or inst.components.health:IsDead() or inst:HasTag("playerghost")
 	then
 		return
 	end
-	print(inst.components.health:IsDead() or inst:HasTag("playerghost"))
-	inst.components.health:SetMaxHealth(inst.components.health.maxhealth + 50)
-	inst.components.hunger:SetMax(inst.components.hunger.max + 50)
-	inst.components.sanity:SetMax(inst.components.sanity.max + 50)
+
+	print("dps do if do update stats")
+	print(inst.components.health.maxhealth)
+	print(healthAmount)
+	print(inst.components.health.maxhealth + healthAmount)
 
 	local current_health = inst.health_percent or inst.components.health:GetPercent()
 	inst.health_percent = nil
@@ -1772,9 +1819,45 @@ local function RoyalUpgrade(inst)
 	local current_sanity = inst.sanity_percent or inst.components.sanity:GetPercent()
 	inst.sanity_percent = nil
 
+	inst.components.health:SetMaxHealth(inst.components.health.maxhealth + healthAmount)
+	print("nova vida ", inst.components.health.maxhealth)
+	inst.components.hunger:SetMax(inst.components.hunger.max + hungerAmount)
+	inst.components.sanity:SetMax(inst.components.sanity.max + sanityAmount)
+
 	inst.components.health:SetPercent(current_health)
 	inst.components.hunger:SetPercent(current_hunger)
 	inst.components.sanity:SetPercent(current_sanity)
+end
+
+
+local function RoyalUpgrade(inst)
+	UpdateStats(inst, 50, 50, 50)
+
+	-- if inst == nil or inst.components == nil or inst.components.health == nil or inst.components.health:IsDead() or inst:HasTag("playerghost")
+	-- then
+	-- 	return
+	-- end
+	-- print(inst.components.health:IsDead() or inst:HasTag("playerghost"))
+	-- inst.components.health:SetMaxHealth(inst.components.health.maxhealth + 50)
+	-- inst.components.hunger:SetMax(inst.components.hunger.max + 50)
+	-- inst.components.sanity:SetMax(inst.components.sanity.max + 50)
+
+	-- local current_health = inst.health_percent or inst.components.health:GetPercent()
+	-- inst.health_percent = nil
+
+	-- local current_hunger = inst.hunger_percent or inst.components.hunger:GetPercent()
+	-- inst.hunger_percent = nil
+
+	-- local current_sanity = inst.sanity_percent or inst.components.sanity:GetPercent()
+	-- inst.sanity_percent = nil
+
+	-- inst.components.health:SetPercent(current_health)
+	-- inst.components.hunger:SetPercent(current_hunger)
+	-- inst.components.sanity:SetPercent(current_sanity)
+end
+
+local function RoyalDowngrade(inst)
+	UpdateStats(inst, -50, -50, -50)
 end
 
 local master_postinit = function(inst)
@@ -2116,7 +2199,7 @@ local master_postinit = function(inst)
 	inst.components.batteryuser.onbatteryused = OnChargeFromBattery
 
 	----------------------------------------------------------------
-	inst:AddComponent("preserver")
+	-- inst:AddComponent("preserver")
 	inst.components.preserver:SetPerishRateMultiplier(ModuleBasedPreserverRateFn)
 
 	----------------------------------------------------------------
@@ -2150,20 +2233,28 @@ local master_postinit = function(inst)
 		TheWorld)
 	update_sisturn_state(inst)
 
+	local wunny = inst
 	-- inst:ListenForEvent("onbunnykingcreated", function()  end, TheWorld)
 	inst:ListenForEvent("onbunnykingcreated", function(inst, data)
-		if inst.king ~= nil or data == nil or data.king == nil then
+		print("onbunnykingcreated")
+		if wunny.king ~= nil or data == nil or data.king == nil then
 			return
 		end
 
-		RoyalUpgrade(inst)
-		inst.king = data.king
+		RoyalUpgrade(wunny)
+		wunny.king = data.king
 		TheWorld:AddTag("hasbunnyking")
 	end, TheWorld)
-	inst:ListenForEvent("onbunnykingdestroyed", function(inst, data)
-		inst.king = nil
+	inst:ListenForEvent("onbunnykingdestroyed", function(inst)
+		print("onbunnykingdestroyed")
+		if wunny.king == nil then
+			return
+		end
+
+		wunny.king = nil
+		RoyalDowngrade(wunny)
 		TheWorld:RemoveTag("hasbunnyking")
-	end)
+	end, TheWorld)
 end
 
 return MakePlayerCharacter("wunny", prefabs, assets, common_postinit, master_postinit, prefabs, prefabsItens)

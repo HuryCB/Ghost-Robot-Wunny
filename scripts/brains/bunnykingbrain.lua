@@ -148,12 +148,12 @@ function BunnykingBrain:OnStart()
                 ChattyNode(self.inst, "RABBIT_PANICHOUSEFIRE",
                     Panic(self.inst))),
             FaceEntity(self.inst, GetTraderFn, KeepTraderFn),
-            DoAction(self.inst, FindFoodAction),
-            Follow(self.inst, GetLeader, MIN_FOLLOW_DIST, TARGET_FOLLOW_DIST, MAX_FOLLOW_DIST),
+            -- DoAction(self.inst, FindFoodAction),
+            -- Follow(self.inst, GetLeader, MIN_FOLLOW_DIST, TARGET_FOLLOW_DIST, MAX_FOLLOW_DIST),
             -- WhileNode(function() return not self.inst.beardlord and TheWorld.state.isday end, "IsNight",
             --             DoAction(self.inst, GoHomeAction, "go home", true ), 1),
             Leash(self.inst, GetNoLeaderHomePos, LEASH_MAX_DIST, LEASH_RETURN_DIST),
-            -- Wander(self.inst, GetNoLeaderHomePos, MAX_WANDER_DIST)
+            -- Wander(self.inst, GetNoLeaderHomePos, MAa_WANDER_DIST)
         }, .5)
 
     self.bt = BT(self.inst, root)

@@ -316,6 +316,7 @@ TUNING.WUNNY_HUNGER_RATE = TUNING.WILSON_HUNGER_RATE
 TUNING.BUNNYPACK_HUNGER = 1.15      --mudar para 1.1
 TUNING.BEARDLORDPACK_HUNGER = 1.175 --mudar para 1.1
 TUNING.WUNNY_QUICK_ACTION_HUNGER = -0.25
+-- TUNING.WUNNY_KING_
 -- TUNING.SHADOWBUNNYMAN_ATTACK_PERIOD =
 -- WUNNY_RUNNING_HUNGER_RATETUNNIN.WUNNY_IDLE_HUNGER_RATE = 1
 
@@ -358,6 +359,9 @@ local skin_modes = {
 --idk
 local spacing = 2
 
+GLOBAL.teste = function()
+    print("teste")
+end
 --function of rabbithole recipe
 local function rabbithole_recipe(ingredients, level)
     AddRecipe("rabbithole", ingredients, RECIPETABS.SURVIVAL, level,

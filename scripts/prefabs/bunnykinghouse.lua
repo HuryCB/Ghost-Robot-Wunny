@@ -146,7 +146,11 @@ local function oninit(inst)
                 inst.components.spawner:ReleaseChild()
                 TheWorld:AddTag("hasbunnyking")
             end
+            return
         end
+        inst.components.lootdropper:DropLoot()
+        inst.components.lootdropper:DropLoot()
+        inst:Remove()
     end
     if inst.components.spawner ~= nil and inst.components.spawner:IsOccupied() then
     end
