@@ -126,10 +126,14 @@ end
 
 local function oninit(inst)
     inst.inittask = inst:DoTaskInTime(math.random(), SpawnCheckCaveDay)
+    print("tentando criar rei")
+            print(TheWorld:HasTag("hasbunnyking"))
     if inst.components.spawner ~= nil and
         inst.components.spawner.child == nil and
         inst.components.spawner.childname ~= nil and
         not inst.components.spawner:IsSpawnPending() then
+            print("tentando criar rei")
+            print(TheWorld:HasTag("hasbunnyking"))
         if not TheWorld:HasTag("hasbunnyking")
         then
             local child = SpawnPrefab(inst.components.spawner.childname)

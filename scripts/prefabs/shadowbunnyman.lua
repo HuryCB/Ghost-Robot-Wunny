@@ -30,6 +30,7 @@ local forced_beardlordloot = { "nightmarefuel" }
 local brain = require("brains/shadowbunnymanbrain")
 
 local MAX_TARGET_SHARES = 5
+local globalFunctions = require("../globalFunctions/globalFunctions")
 local SHARE_TARGET_DIST = 30
 
 local function SuggestTreeTarget(inst, data)
@@ -624,7 +625,21 @@ local function fn()
     -- MakeFeedableSmallLivestock(inst, TUNING.RABBIT_PERISH_TIME, nil, nil)
 
     -- --até aqui
+    inst:ListenForEvent("upgradeBunnys", function()
+        -- if TheWorld:HasTag("hasbunnyking")
+        -- then
+        --     return
+        -- end
+        globalFunctions.RoyalUpgrade(inst)
+    end, TheWorld)
 
+    inst:ListenForEvent("downgradeBunnys", function()
+        -- if TheWorld:HasTag("hasbunnyking")
+        -- then
+        --     return
+        -- end
+        globalFunctions.RoyalDowngrade(inst)
+    end, TheWorld)
 
     return inst
 end

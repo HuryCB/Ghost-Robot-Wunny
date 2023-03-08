@@ -13,10 +13,10 @@ local prefabsItens = {
 	"carrot"
 }
 
-local CHARGEREGEN_TIMERNAME = "chargeregenupdate"
-local MOISTURETRACK_TIMERNAME = "moisturetrackingupdate"
-local HUNGERDRAIN_TIMERNAME = "hungerdraintick"
-local HEATSTEAM_TIMERNAME = "heatsteam_tick"
+-- local CHARGEREGEN_TIMERNAME = "chargeregenupdate"
+-- local MOISTURETRACK_TIMERNAME = "moisturetrackingupdate"
+-- local HUNGERDRAIN_TIMERNAME = "hungerdraintick"
+-- local HEATSTEAM_TIMERNAME = "heatsteam_tick"
 
 TUNING.WUNNY_HEALTH = 65
 TUNING.WUNNY_HUNGER = 140
@@ -835,6 +835,7 @@ local function onload(inst, data)
 		if data.king ~= nil then
 			inst.king = data.king
 			TheWorld:AddTag("hasbunnyking")
+			TheWorld:PushEvent("upgradeBunnys")
 		end
 		if data.woby ~= nil then
 			inst._woby_spawntask:Cancel()
@@ -1946,7 +1947,7 @@ local master_postinit = function(inst)
 	-- inst.components.itemaffinity:AddAffinity(nil, "manrabbit", TUNING.DAPPERNESS_MED, 1)
 
 	inst:AddComponent("preserver")
-	inst.components.preserver:SetPerishRateMultiplier(CarrotPreserverRate)
+	-- inst.components.preserver:SetPerishRateMultiplier(CarrotPreserverRate)
 
 	if inst.components.eater ~= nil then
 		inst.components.eater:SetDiet({ FOODGROUP.VEGETARIAN }, { FOODGROUP.VEGETARIAN, FOODTYPE.GOODIES })
@@ -2243,6 +2244,7 @@ local master_postinit = function(inst)
 
 		RoyalUpgrade(wunny)
 		wunny.king = data.king
+		TheWorld:PushEvent("upgradeBunnys")
 		TheWorld:AddTag("hasbunnyking")
 	end, TheWorld)
 	inst:ListenForEvent("onbunnykingdestroyed", function(inst)
@@ -2253,6 +2255,7 @@ local master_postinit = function(inst)
 
 		wunny.king = nil
 		RoyalDowngrade(wunny)
+		TheWorld:PushEvent("downgradeBunnys")
 		TheWorld:RemoveTag("hasbunnyking")
 	end, TheWorld)
 end

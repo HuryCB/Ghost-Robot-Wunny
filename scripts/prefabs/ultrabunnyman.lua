@@ -30,6 +30,7 @@ local forced_beardlordloot = { "nightmarefuel", "beardhair", "beardhair", "monst
 local brain = require("brains/ultrabunnymanbrain")
 
 local MAX_TARGET_SHARES = 5
+local globalFunctions = require("../globalFunctions/globalFunctions")
 local SHARE_TARGET_DIST = 30
 local weaponDamage = 0
 
@@ -715,7 +716,7 @@ local function fn()
     -- inst.components.sleeper.sleeptestfn = NormalShouldSleep
     -- inst.components.sleeper.waketestfn = DefaultWakeTest
 
-    -- SetBunnyDamage(inst, 1.1)
+    SetBunnyDamage(inst, 1.1)
     inst.components.combat:SetAttackPeriod(TUNING.BUNNYMAN_ATTACK_PERIOD * 90 / 100)
     inst.components.combat:SetKeepTargetFunction(NormalKeepTargetFn)
     inst.components.combat:SetRetargetFunction(3, NormalRetargetFn)
@@ -739,19 +740,21 @@ local function fn()
     inst:ListenForEvent("equip", OnUnEquip)
     inst:ListenForEvent("death", OnDeath)
 
-    -- inst:ListenForEvent("onbunnykingcreated",   function()
-    --     inst:DoTaskInTime(math.random()*SLIGHTDELAY,function()
+    inst:ListenForEvent("upgradeBunnys", function()
+        -- if TheWorld:HasTag("hasbunnyking")
+        -- then
+        --     return
+        -- end
+        globalFunctions.RoyalUpgrade(inst)
+    end, TheWorld)
 
-    --         inst.components.combat:SetDefaultDamage(300)
-    --         inst:PushEvent("onbunnykingcreated")
-    --     end)
-    -- end, TheWorld)
-    -- inst:ListenForEvent("onmermkingdestroyed", function()
-    --     inst:DoTaskInTime(math.random()*SLIGHTDELAY,function()
-    --         inst.components.combat:SetDefaultDamage(30)
-    --         inst:PushEvent("onbunnykingdestroyed")
-    --     end)
-    -- end, TheWorld)
+    inst:ListenForEvent("downgradeBunnys", function()
+        -- if TheWorld:HasTag("hasbunnyking")
+        -- then
+        --     return
+        -- end
+        globalFunctions.RoyalDowngrade(inst)
+    end, TheWorld)
 
     return inst
 end

@@ -28,6 +28,7 @@ local beardlordloot = { "beardhair", "beardhair", "monstermeat" }
 local forced_beardlordloot = { "nightmarefuel", "beardhair", "beardhair", "monstermeat" }
 
 local brain = require("brains/everythingbunnymanbrain")
+local globalFunctions = require("../globalFunctions/globalFunctions")
 
 local MAX_TARGET_SHARES = 5
 local SHARE_TARGET_DIST = 30
@@ -81,7 +82,7 @@ local function ClearObservedBeardlord(inst)
     inst.clearbeardlordtask = nil
     if not IsForcedNightmare(inst) then
         inst.beardlord = nil
-        inst.components.combat:SetDefaultDamage(TUNING.BUNNYMAN_DAMAGE / 1.4 )
+        inst.components.combat:SetDefaultDamage(TUNING.BUNNYMAN_DAMAGE / 1.4)
     end
 end
 
@@ -153,28 +154,28 @@ local function CalcSanityAura(inst, observer)
 end
 
 local function ShouldAcceptItem(inst, item)
-    return (--accept all hats!
+    return ( --accept all hats!
         item.components.equippable ~= nil and
-            item.components.equippable.equipslot == EQUIPSLOTS.HEAD
+        item.components.equippable.equipslot == EQUIPSLOTS.HEAD
         ) or
-        (--accept all hands!
+        ( --accept all hands!
         item.components.equippable ~= nil and
-            item.components.equippable.equipslot == EQUIPSLOTS.HANDS
+        item.components.equippable.equipslot == EQUIPSLOTS.HANDS
         ) or
-        (--accept all armors!
+        ( --accept all armors!
         item.components.equippable ~= nil and
-            item.components.equippable.equipslot == EQUIPSLOTS.BODY
+        item.components.equippable.equipslot == EQUIPSLOTS.BODY
         ) or
         ( --accept all backs (armors)!
         item.components.equippable ~= nil and
         item.components.equippable.equipslot == EQUIPSLOTS.BACK
         ) or
-        (--accept food, but not too many carrots for loyalty!
+        ( --accept food, but not too many carrots for loyalty!
         inst.components.eater:CanEat(item) and
-            ((item.prefab ~= "carrot" and item.prefab ~= "carrot_cooked") or
-                inst.components.follower.leader == nil or
-                inst.components.follower:GetLoyaltyPercent() <= .9
-            )
+        ((item.prefab ~= "carrot" and item.prefab ~= "carrot_cooked") or
+        inst.components.follower.leader == nil or
+        inst.components.follower:GetLoyaltyPercent() <= .9
+        )
         )
 end
 
@@ -185,15 +186,15 @@ local function OnGetItemFromPlayer(inst, giver, item)
             item.prefab == "carrot_cooked"
             ) and
             item.components.inventoryitem ~= nil and
-            (--make sure it didn't drop due to pockets full
+            ( --make sure it didn't drop due to pockets full
             item.components.inventoryitem:GetGrandOwner() == inst or
-                --could be merged into a stack
-                (not item:IsValid() and
-                    inst.components.inventory:FindItem(function(obj)
-                        return obj.prefab == item.prefab
-                            and obj.components.stackable ~= nil
-                            and obj.components.stackable:IsStack()
-                    end) ~= nil)
+            --could be merged into a stack
+            (not item:IsValid() and
+            inst.components.inventory:FindItem(function(obj)
+                return obj.prefab == item.prefab
+                    and obj.components.stackable ~= nil
+                    and obj.components.stackable:IsStack()
+            end) ~= nil)
             ) then
             if inst.components.combat:TargetIs(giver) then
                 inst.components.combat:SetTarget(nil)
@@ -289,13 +290,13 @@ local function NormalRetargetFn(inst)
             function(guy)
                 return inst.components.combat:CanTarget(guy)
                     and (
-                        -- guy:HasTag("monster")
-                        -- or 
-                        guy:HasTag("wonkey")
-                        or guy:HasTag("pirate")
-                        or (guy.components.inventory ~= nil and
-                            guy:IsNear(inst, TUNING.BUNNYMAN_SEE_MEAT_DIST) and
-                            guy.components.inventory:FindItem(is_meat) ~= nil))
+                    -- guy:HasTag("monster")
+                    -- or
+                    guy:HasTag("wonkey")
+                    or guy:HasTag("pirate")
+                    or (guy.components.inventory ~= nil and
+                    guy:IsNear(inst, TUNING.BUNNYMAN_SEE_MEAT_DIST) and
+                    guy.components.inventory:FindItem(is_meat) ~= nil))
             end,
             RETARGET_MUST_TAGS, -- see entityreplica.lua
             nil,
@@ -314,7 +315,7 @@ end
 
 local function battlecry(combatcmp, target)
     local strtbl =
-    target ~= nil and
+        target ~= nil and
         target.components.inventory ~= nil and
         target.components.inventory:FindItem(is_meat) ~= nil and
         "RABBIT_MEAT_BATTLECRY" or
@@ -354,7 +355,7 @@ local function OnPickup(inst)
     if item then
         inst.components.inventory:DropItem(item)
     end
-  
+
     local item = inst.components.inventory:GetEquippedItem(EQUIPSLOTS.BODY)
     if item then
         inst.components.inventory:DropItem(item)
@@ -364,12 +365,11 @@ local function OnPickup(inst)
     if item then
         inst.components.inventory:DropItem(item)
     end
-  
+
     local item = inst.components.inventory:GetEquippedItem(EQUIPSLOTS.HEAD)
     if item then
         inst.components.inventory:DropItem(item)
     end
-  
 end
 
 local function fn()
@@ -397,7 +397,7 @@ local function fn()
     inst:AddTag("character")
     inst:AddTag("pig")
     inst:AddTag("manrabbit")
- inst:AddTag("notraptrigger")
+    inst:AddTag("notraptrigger")
     inst:AddTag("scarytoprey")
 
     inst.AnimState:SetBank("manrabbit")
@@ -432,9 +432,11 @@ local function fn()
 
     inst.components.talker.ontalk = ontalk
 
-    inst:AddComponent("locomotor") -- locomotor must be constructed before the stategraph
-    inst.components.locomotor.runspeed = TUNING.PIG_RUN_SPEED * 2.4 -- account for them being stopped for part of their anim
-    inst.components.locomotor.walkspeed = TUNING.PIG_WALK_SPEED * 2.2 -- account for them being stopped for part of their anim
+    inst:AddComponent("locomotor")                                    -- locomotor must be constructed before the stategraph
+    inst.components.locomotor.runspeed = TUNING.PIG_RUN_SPEED *
+    2.4                                                               -- account for them being stopped for part of their anim
+    inst.components.locomotor.walkspeed = TUNING.PIG_WALK_SPEED *
+    2.2                                                               -- account for them being stopped for part of their anim
 
     -- boat hopping setup
     inst.components.locomotor:SetAllowPlatformHopping(true)
@@ -553,6 +555,22 @@ local function fn()
     MakeFeedableSmallLivestock(inst, TUNING.RABBIT_PERISH_TIME * 4, nil, nil)
 
     inst:ListenForEvent("onpickup", OnPickup)
+
+    inst:ListenForEvent("upgradeBunnys", function()
+        -- if TheWorld:HasTag("hasbunnyking")
+        -- then
+        --     return
+        -- end
+        globalFunctions.RoyalUpgrade(inst)
+    end, TheWorld)
+
+    inst:ListenForEvent("downgradeBunnys", function()
+        -- if TheWorld:HasTag("hasbunnyking")
+        -- then
+        --     return
+        -- end
+        globalFunctions.RoyalDowngrade(inst)
+    end, TheWorld)
 
     return inst
 end
