@@ -901,23 +901,23 @@ local function onload(inst, data)
 		if data.maxSanity ~= nil then
 			inst.components.sanity:SetMax(data.maxSanity)
 		end
-		
-	
-		
-	
-		
-		--WURT 
+
+
+
+
+
+		--WURT
 		if data.health_percent then
-            inst.health_percent = data.health_percent
-        end
+			inst.health_percent = data.health_percent
+		end
 
-        if data.sanity_percent then
-            inst.sanity_percent = data.sanity_percent
-        end
+		if data.sanity_percent then
+			inst.sanity_percent = data.sanity_percent
+		end
 
-        if data.hunger_percent then
-            inst.hunger_percent = data.hunger_percent
-        end
+		if data.hunger_percent then
+			inst.hunger_percent = data.hunger_percent
+		end
 		-- WX-78 needs to manually save/load health, hunger, and sanity, in case their maxes
 		-- were modified by upgrade circuits, because those components only save current,
 		-- and that gets overridden by the default max values during construction.
@@ -934,8 +934,6 @@ local function onload(inst, data)
 		if data._wx78_hunger then
 			inst.components.hunger.current = data._wx78_hunger
 		end
-
-		
 	end
 
 	if data ~= nil then
@@ -1118,10 +1116,10 @@ local function OnSave(inst, data)
 	-- and that gets overridden by the default max values during construction.
 	-- So, if we wait to re-apply them in our OnLoad, we will have them properly
 	-- (as entity OnLoad runs after component OnLoads)
-	
+
 	data.health_percent = inst.health_percent or inst.components.health:GetPercent()
-    data.sanity_percent = inst.sanity_percent or inst.components.sanity:GetPercent()
-    data.hunger_percent = inst.hunger_percent or inst.components.hunger:GetPercent()
+	data.sanity_percent = inst.sanity_percent or inst.components.sanity:GetPercent()
+	data.hunger_percent = inst.hunger_percent or inst.components.hunger:GetPercent()
 
 	data._wx78_health = inst.components.health.currenthealth
 	data._wx78_sanity = inst.components.sanity.current
@@ -1133,7 +1131,6 @@ local function OnSave(inst, data)
 	if inst.questghost ~= nil then
 		data.questghost = inst.questghost:GetSaveRecord()
 	end
-
 end
 
 
@@ -2018,6 +2015,15 @@ local master_postinit = function(inst)
 					or v.prefab == "shadowbunnyman"
 					or v.prefab == "dwarfbunnyman"
 				then
+					local item = inst.components.inventory:GetEquippedItem(EQUIPSLOTS.HEAD)
+					if item and item.prefab == "strawhat"
+					then
+						print("o item na cabeça é strawhat")
+						v.components.inventoryitem.canbepickedup = true
+					else
+						print("n tem item ou diferente de straw")
+						v.components.inventoryitem.canbepickedup = false
+					end
 					if v.components.follower.leader == nil
 					then
 						if v.components.combat:TargetIs(inst) then
@@ -2027,9 +2033,9 @@ local master_postinit = function(inst)
 						--lose hunger on befriending
 						inst.components.hunger:DoDelta(-12.5)
 					end
-					if v.prefab == "dwarfbunnyman" then
-						v.components.inventoryitem.canbepickedup = true
-					end
+					-- if v.prefab == "dwarfbunnyman" then
+					-- 	v.components.inventoryitem.canbepickedup = true
+					-- end
 				elseif v.prefab == "rabbit"
 				then
 					v.components.inventoryitem.canbepickedup = true
@@ -2243,9 +2249,9 @@ local master_postinit = function(inst)
 		end
 
 		RoyalUpgrade(wunny)
+		TheWorld:AddTag("hasbunnyking")
 		wunny.king = data.king
 		TheWorld:PushEvent("upgradeBunnys")
-		TheWorld:AddTag("hasbunnyking")
 	end, TheWorld)
 	inst:ListenForEvent("onbunnykingdestroyed", function(inst)
 		print("onbunnykingdestroyed")
@@ -2255,8 +2261,8 @@ local master_postinit = function(inst)
 
 		wunny.king = nil
 		RoyalDowngrade(wunny)
-		TheWorld:PushEvent("downgradeBunnys")
 		TheWorld:RemoveTag("hasbunnyking")
+		TheWorld:PushEvent("downgradeBunnys")
 	end, TheWorld)
 end
 

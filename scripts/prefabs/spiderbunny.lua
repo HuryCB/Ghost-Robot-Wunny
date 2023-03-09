@@ -579,6 +579,10 @@ local function create_common(bank, build, tag, common_init, extra_data)
     inst.components.locomotor:SetTriggersCreep(false)
     inst.components.locomotor.pathcaps = (extra_data and extra_data.pathcaps) or BASE_PATHCAPS
     -- boat hopping setup
+       inst.components.locomotor:SetFasterOnGroundTile(WORLD_TILES.SAVANNA, true)
+        inst.components.locomotor:SetFasterOnGroundTile(WORLD_TILES.SINKHOLE, true)
+    
+    -- boat hopping setup
     inst.components.locomotor:SetAllowPlatformHopping(true)
     
     inst:AddComponent("embarker")

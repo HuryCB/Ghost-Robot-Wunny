@@ -507,6 +507,10 @@ local function fn()
         1.9 -- account for them being stopped for part of their anim
 
     -- boat hopping setup
+       inst.components.locomotor:SetFasterOnGroundTile(WORLD_TILES.SAVANNA, true)
+        inst.components.locomotor:SetFasterOnGroundTile(WORLD_TILES.SINKHOLE, true)
+    
+    -- boat hopping setup
     inst.components.locomotor:SetAllowPlatformHopping(true)
     inst:AddComponent("embarker")
     inst:AddComponent("drownable")
@@ -625,6 +629,8 @@ local function fn()
     -- MakeFeedableSmallLivestock(inst, TUNING.RABBIT_PERISH_TIME, nil, nil)
 
     -- --até aqui
+       globalFunctions.PickUpRabbit(inst)
+
     inst:ListenForEvent("upgradeBunnys", function()
         -- if TheWorld:HasTag("hasbunnyking")
         -- then
@@ -638,8 +644,10 @@ local function fn()
         -- then
         --     return
         -- end
-        globalFunctions.RoyalDowngrade(inst)
+     globalFunctions.RoyalDowngrade(inst)
     end, TheWorld)
+
+    globalFunctions.RoyalUpgrade(inst)
 
     return inst
 end

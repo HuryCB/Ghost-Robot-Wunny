@@ -437,6 +437,8 @@ local function fn()
     2.4                                                               -- account for them being stopped for part of their anim
     inst.components.locomotor.walkspeed = TUNING.PIG_WALK_SPEED *
     2.2                                                               -- account for them being stopped for part of their anim
+	inst.components.locomotor:SetFasterOnGroundTile(WORLD_TILES.SAVANNA, true)
+	inst.components.locomotor:SetFasterOnGroundTile(WORLD_TILES.SINKHOLE, true)
 
     -- boat hopping setup
     inst.components.locomotor:SetAllowPlatformHopping(true)
@@ -545,16 +547,7 @@ local function fn()
     -- inst:AddComponent("container")
     -- inst.components.container:WidgetSetup("antlionhat")
 
-    inst:AddComponent("inventoryitem")
-    inst.components.inventoryitem.nobounce = true
-    inst.components.inventoryitem.canbepickedup = false
-    inst.components.inventoryitem.canbepickedupalive = true
-    inst.components.inventoryitem:SetSinks(true)
-    inst.components.inventoryitem.imagename = "bunny"
-    inst.components.inventoryitem.atlasname = "images/inventoryimages/bunny.xml"
-    MakeFeedableSmallLivestock(inst, TUNING.RABBIT_PERISH_TIME * 4, nil, nil)
-
-    inst:ListenForEvent("onpickup", OnPickup)
+    globalFunctions.PickUpRabbit(inst)
 
     inst:ListenForEvent("upgradeBunnys", function()
         -- if TheWorld:HasTag("hasbunnyking")
@@ -572,6 +565,8 @@ local function fn()
         globalFunctions.RoyalDowngrade(inst)
     end, TheWorld)
 
+    globalFunctions.RoyalUpgrade(inst)
+    
     return inst
 end
 

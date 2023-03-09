@@ -289,12 +289,12 @@ end
 
 local function ShouldAcceptItem(inst, item)
     print("está no should accept item")
-    print(item.components.equippable ~= nil)
-    print(item.components.equippable.equipslot == EQUIPSLOTS.BODY)
-    print(item.components.equippable ~= nil and
-    item.components.equippable.equipslot == EQUIPSLOTS.BODY)
+    -- print(item.components.equippable ~= nil)
+    -- print(item.components.equippable.equipslot == EQUIPSLOTS.BODY)
+    -- print(item.components.equippable ~= nil and
+    --     item.components.equippable.equipslot == EQUIPSLOTS.BODY)
 
-    print(item.components.equippable.equipslot)
+    -- print(item.components.equippable.equipslot)
     return ( --accept all hats!
         item.components.equippable ~= nil and
         item.components.equippable.equipslot == EQUIPSLOTS.HEAD
@@ -324,6 +324,12 @@ local function OnGetItemFromPlayer(inst, giver, item)
     --I eat food
     print("on get item item from player")
     if item.components.edible ~= nil then
+        if item.prefab == "carrot" then
+            print("ultra pode ser pego")
+            inst.components.inventoryitem.canbepickedup = true
+        
+            return
+        end
         if (item.prefab == "carrot" or
             item.prefab == "carrot_cooked"
             ) and
@@ -379,9 +385,9 @@ local function OnGetItemFromPlayer(inst, giver, item)
         -- inst.AnimState:Show("hat")
     end
 
-    print("antes do if da armor")
-    print(item.components.equippable ~= nil)
-    print(item.components.equippable.equipslot == EQUIPSLOTS.BODY)
+    -- print("antes do if da armor")
+    -- print(item.components.equippable ~= nil)
+    -- print(item.components.equippable.equipslot == EQUIPSLOTS.BODY)
     --I wear armors
     if item.components.equippable ~= nil and item.components.equippable.equipslot == EQUIPSLOTS.BODY then
         local current = inst.components.inventory:GetEquippedItem(EQUIPSLOTS.BODY)
@@ -626,10 +632,12 @@ local function fn()
 
     inst:AddComponent("locomotor") -- locomotor must be constructed before the stategraph
     inst.components.locomotor.runspeed = TUNING.PIG_RUN_SPEED *
-        2.4 -- account for them being stopped for part of their anim
+        2.4                        -- account for them being stopped for part of their anim
     inst.components.locomotor.walkspeed = TUNING.PIG_WALK_SPEED *
-        2.1 -- account for them being stopped for part of their anim
-
+        2.1                        -- account for them being stopped for part of their anim
+        inst.components.locomotor:SetFasterOnGroundTile(WORLD_TILES.SAVANNA, true)
+        inst.components.locomotor:SetFasterOnGroundTile(WORLD_TILES.SINKHOLE, true)
+    
     -- boat hopping setup
     inst.components.locomotor:SetAllowPlatformHopping(true)
     inst:AddComponent("embarker")
@@ -736,9 +744,12 @@ local function fn()
     inst:ListenForEvent("ms_forcenightmarestate", OnForceNightmareState)
 
     inst.OnLoad = OnLoad
+
     inst:ListenForEvent("equip", OnEquip)
     inst:ListenForEvent("equip", OnUnEquip)
     inst:ListenForEvent("death", OnDeath)
+
+       globalFunctions.PickUpRabbit(inst)
 
     inst:ListenForEvent("upgradeBunnys", function()
         -- if TheWorld:HasTag("hasbunnyking")
@@ -753,8 +764,10 @@ local function fn()
         -- then
         --     return
         -- end
-        globalFunctions.RoyalDowngrade(inst)
+     globalFunctions.RoyalDowngrade(inst)
     end, TheWorld)
+
+    globalFunctions.RoyalUpgrade(inst)
 
     return inst
 end

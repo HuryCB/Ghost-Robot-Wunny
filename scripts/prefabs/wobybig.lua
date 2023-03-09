@@ -71,8 +71,6 @@ local function SetRunSpeed(inst, speed)
 
     local rider = inst.components.rideable:GetRider()
     if rider and rider.player_classified ~= nil then
-
-        
         speed = speed + (rider.components.locomotor.runspeed - 6)
         -- inst.components.equippable.walkspeedmult = TUNING.CANE_SPEED_MULT
         -- inst.components.locomotor:SetExternalSpeedMultiplier(inst, "teste", 2)
@@ -81,7 +79,6 @@ local function SetRunSpeed(inst, speed)
     end
 
     inst.components.locomotor.runspeed = speed
-   
 end
 
 local function OnHungerDelta(inst, data)
@@ -103,7 +100,6 @@ local function DoRiderSleep(inst, sleepiness, sleeptime)
 end
 
 local function OnRiderChanged(inst, data)
-
     if inst._ridersleeptask ~= nil then
         inst._ridersleeptask:Cancel()
         inst._ridersleeptask = nil
@@ -121,16 +117,16 @@ local function OnRiderChanged(inst, data)
     end
 
     -- if data.newrider ~= nil then
-        -- print("multiplier do novo montador ", data.newrider.components.locomotor:GetSpeedMultiplier())
+    -- print("multiplier do novo montador ", data.newrider.components.locomotor:GetSpeedMultiplier())
     -- end
 end
 
 local function OnRiderSleep(inst, data)
     inst._ridersleep = inst.components.rideable:IsBeingRidden() and {
-        time = GetTime(),
-        sleepiness = data.sleepiness,
-        sleeptime = data.sleeptime,
-    } or nil
+            time = GetTime(),
+            sleepiness = data.sleepiness,
+            sleeptime = data.sleeptime,
+        } or nil
 end
 
 local function LinkToPlayer(inst, player)
@@ -141,44 +137,44 @@ local function LinkToPlayer(inst, player)
 end
 
 local function OnPlayerLinkDespawn(inst, forcedrop)
-	if inst.components.container ~= nil then
-		inst.components.container:Close()
-		inst.components.container.canbeopened = false
+    if inst.components.container ~= nil then
+        inst.components.container:Close()
+        inst.components.container.canbeopened = false
 
-		if forcedrop or GetGameModeProperty("drop_everything_on_despawn") then
-			inst.components.container:DropEverything()
-		else
-			inst.components.container:DropEverythingWithTag("irreplaceable")
-		end
-	end
+        if forcedrop or GetGameModeProperty("drop_everything_on_despawn") then
+            inst.components.container:DropEverything()
+        else
+            inst.components.container:DropEverythingWithTag("irreplaceable")
+        end
+    end
 
-	if inst.components.drownable ~= nil then
-		inst.components.drownable.enabled = false
-	end
+    if inst.components.drownable ~= nil then
+        inst.components.drownable.enabled = false
+    end
 
-	local fx = SpawnPrefab(inst.spawnfx)
-	fx.entity:SetParent(inst.entity)
+    local fx = SpawnPrefab(inst.spawnfx)
+    fx.entity:SetParent(inst.entity)
 
-	inst.components.colourtweener:StartTween({ 0, 0, 0, 1 }, 13 * FRAMES, inst.Remove)
+    inst.components.colourtweener:StartTween({ 0, 0, 0, 1 }, 13 * FRAMES, inst.Remove)
 
-	if not inst.sg:HasStateTag("busy") then
-		inst.sg:GoToState("despawn")
-	end
+    if not inst.sg:HasStateTag("busy") then
+        inst.sg:GoToState("despawn")
+    end
 end
 
 local function FinishTransformation(inst)
     local items = inst.components.container:RemoveAllItems()
-	local player = inst._playerlink
+    local player = inst._playerlink
     local new_woby = ReplacePrefab(inst, "wobysmall")
 
-    for i,v in ipairs(items) do
+    for i, v in ipairs(items) do
         new_woby.components.container:GiveItem(v)
     end
 
-	if player ~= nil then
-		new_woby:LinkToPlayer(player)
-	    player:OnWobyTransformed(new_woby)
-	end
+    if player ~= nil then
+        new_woby:LinkToPlayer(player)
+        player:OnWobyTransformed(new_woby)
+    end
 end
 
 local WAKE_TO_FOLLOW_DISTANCE = 6
@@ -194,11 +190,13 @@ local function IsLeaderTellingStory(inst)
 end
 
 local function ShouldWakeUp(inst)
-    return not (IsLeaderSleeping(inst) or IsLeaderTellingStory(inst)) or not inst.components.follower:IsNearLeader(WAKE_TO_FOLLOW_DISTANCE)
+    return not (IsLeaderSleeping(inst) or IsLeaderTellingStory(inst)) or
+    not inst.components.follower:IsNearLeader(WAKE_TO_FOLLOW_DISTANCE)
 end
 
 local function ShouldSleep(inst)
-    return (IsLeaderSleeping(inst) or IsLeaderTellingStory(inst)) and inst.components.follower:IsNearLeader(SLEEP_NEAR_LEADER_DISTANCE)
+    return (IsLeaderSleeping(inst) or IsLeaderTellingStory(inst)) and
+    inst.components.follower:IsNearLeader(SLEEP_NEAR_LEADER_DISTANCE)
 end
 
 local function fn()
@@ -241,7 +239,7 @@ local function fn()
 
     inst:AddComponent("eater")
     inst.components.eater:SetDiet({ FOODTYPE.MONSTER }, { FOODTYPE.MONSTER })
-    inst.components.eater:SetAbsorptionModifiers(4,1,1)
+    inst.components.eater:SetAbsorptionModifiers(4, 1, 1)
 
     inst:AddComponent("inspectable")
 
@@ -259,7 +257,7 @@ local function fn()
     inst.components.sleeper.waketestfn = ShouldWakeUp
 
     inst:AddComponent("hunger")
-    inst.components.hunger:SetMax(TUNING.WOBY_BIG_HUNGER)--se for mt alto, a porcentagem vai ficar baixa
+    inst.components.hunger:SetMax(TUNING.WOBY_BIG_HUNGER) --se for mt alto, a porcentagem vai ficar baixa
     inst.components.hunger:SetRate(TUNING.WOBY_BIG_HUNGER_RATE)
     inst.components.hunger:SetOverrideStarveFn(OnStarving)
 
@@ -269,6 +267,10 @@ local function fn()
     inst:AddComponent("locomotor") -- locomotor must be constructed before the stategraph
     inst.components.locomotor.walkspeed = TUNING.WOBY_BIG_WALK_SPEED
     SetRunSpeed(inst, TUNING.WOBY_BIG_SPEED.FAST)
+    inst.components.locomotor:SetFasterOnGroundTile(WORLD_TILES.SAVANNA, true)
+    inst.components.locomotor:SetFasterOnGroundTile(WORLD_TILES.SINKHOLE, true)
+
+    -- boat hopping setup
     inst.components.locomotor:SetAllowPlatformHopping(true)
 
     inst:AddComponent("container")
@@ -277,7 +279,7 @@ local function fn()
     inst:AddComponent("embarker")
     inst:AddComponent("drownable")
 
-	inst:AddComponent("colourtweener")
+    inst:AddComponent("colourtweener")
 
     MakeHauntablePanic(inst)
 
@@ -286,15 +288,15 @@ local function fn()
 
     inst.persists = false
 
-	inst.spawnfx = "spawn_fx_medium"
+    inst.spawnfx = "spawn_fx_medium"
 
     inst:ListenForEvent("riderchanged", OnRiderChanged)
     inst:ListenForEvent("hungerdelta", OnHungerDelta)
     inst:ListenForEvent("ridersleep", OnRiderSleep)
 
     inst.LinkToPlayer = LinkToPlayer
-	inst.OnPlayerLinkDespawn = OnPlayerLinkDespawn
-	inst._onlostplayerlink = function(player) inst._playerlink = nil end
+    inst.OnPlayerLinkDespawn = OnPlayerLinkDespawn
+    inst._onlostplayerlink = function(player) inst._playerlink = nil end
 
 
     inst.FinishTransformation = FinishTransformation

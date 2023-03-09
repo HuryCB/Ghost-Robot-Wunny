@@ -354,6 +354,10 @@ local function fn()
     inst.components.locomotor.walkspeed = TUNING.PIG_WALK_SPEED * 1.9 -- account for them being stopped for part of their anim
 
     -- boat hopping setup
+       inst.components.locomotor:SetFasterOnGroundTile(WORLD_TILES.SAVANNA, true)
+        inst.components.locomotor:SetFasterOnGroundTile(WORLD_TILES.SINKHOLE, true)
+    
+    -- boat hopping setup
     inst.components.locomotor:SetAllowPlatformHopping(true)
     inst:AddComponent("embarker")
     inst:AddComponent("drownable")
