@@ -324,12 +324,12 @@ local function OnGetItemFromPlayer(inst, giver, item)
     --I eat food
     print("on get item item from player")
     if item.components.edible ~= nil then
-        if item.prefab == "carrot" then
-            print("ultra pode ser pego")
-            inst.components.inventoryitem.canbepickedup = true
+        -- if item.prefab == "carrot" then
+        --     print("ultra pode ser pego")
+        --     inst.components.inventoryitem.canbepickedup = true
         
-            return
-        end
+        --     return
+        -- end
         if (item.prefab == "carrot" or
             item.prefab == "carrot_cooked"
             ) and

@@ -48,6 +48,7 @@ local NORMAL_SKINS = {
 TUNING.GAMEMODE_STARTING_ITEMS.DEFAULT.WUNNY = {
 	-- "wunnyslingshot",
 	"dwarfbunnyman",
+	"strawhat",
 	-- "rabbit",
 	-- "rabbit",
 	-- "armorwood",
