@@ -1265,7 +1265,7 @@ local function OnSanityDelta(inst, data)
 		-- end
 		inst.components.beard.prize = "manrabbit_tail"
 		-- inst:RemoveTag("playermonster")
-		inst:RemoveTag("monster")
+		-- inst:RemoveTag("monster")
 
 
 		-- inst.components.sanityaura.aura = 0

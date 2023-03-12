@@ -62,6 +62,8 @@ STRINGS.RECIPE_DESC.WUNNY_SPOTLIGHT = "Better than winona's. Can be picked up"
 STRINGS.NAMES.WUNNYICEBOX = "Wunny's better Icebox"
 STRINGS.RECIPE_DESC.WUNNYICEBOX = "Double of icebox's preserver rate (0.25 perish rate)"
 
+STRINGS.RECIPE_DESC.STRAWHAT = "Helps you stay cool and dry. Wunny can pick up bunnys"
+
 -- TRINGS.RECIPE_DESC.LUCY = "Woodie's axe for Wunny"
 
 -- STRINGS.NAMES.CACTUSMACE = "Cactus Bat"
