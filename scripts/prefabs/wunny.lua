@@ -13,11 +13,6 @@ local prefabsItens = {
 	"carrot"
 }
 
--- local CHARGEREGEN_TIMERNAME = "chargeregenupdate"
--- local MOISTURETRACK_TIMERNAME = "moisturetrackingupdate"
--- local HUNGERDRAIN_TIMERNAME = "hungerdraintick"
--- local HEATSTEAM_TIMERNAME = "heatsteam_tick"
-
 TUNING.WUNNY_HEALTH = 65
 TUNING.WUNNY_HUNGER = 140
 TUNING.WUNNY_SANITY = 140
@@ -105,62 +100,10 @@ TUNING.GAMEMODE_STARTING_ITEMS.DEFAULT.WUNNY = {
 	-- "monstermeat",
 	-- "wunnyslingshot",
 	-- "slingshotammo_rock",
-	-- "slingshotammo_rock",
-	-- "slingshotammo_rock",
-	-- "slingshotammo_rock",
-	-- "slingshotammo_rock",
-	-- "slingshotammo_rock",
-	-- "slingshotammo_rock",
-	-- "slingshotammo_rock",
-	-- "slingshotammo_rock",
-	-- "slingshotammo_rock",
-	-- "slingshotammo_rock",
-	-- "slingshotammo_rock",
-	-- "slingshotammo_rock",
-	-- "slingshotammo_rock",
-	-- "slingshotammo_rock",
-	-- "slingshotammo_rock",
-	-- "slingshotammo_rock",
-	-- "slingshotammo_rock",
-	-- "slingshotammo_rock",
-	-- "slingshotammo_rock",
-	-- "slingshotammo_rock",
-	-- "slingshotammo_rock",
-	-- "slingshotammo_rock",
-	-- "slingshotammo_rock",
-
 	-- "shovel",
 
 	-- "carrot",
 	-- "carrot",
-
-	-- "carrot",
-	-- "carrot",
-	-- "carrot",
-	-- "carrot",
-	-- "carrot",
-	-- "carrot",
-	-- "carrot",
-	-- "carrot",
-
-	-- "manrabbit_tail",
-	-- "manrabbit_tail",
-	-- "manrabbit_tail",
-	-- "manrabbit_tail",
-	-- "manrabbit_tail",
-	-- "manrabbit_tail",
-	-- "manrabbit_tail",
-	-- "manrabbit_tail",
-	-- "manrabbit_tail",
-	-- "manrabbit_tail",
-	-- "manrabbit_tail",
-	-- "manrabbit_tail",
-	-- "manrabbit_tail",
-	-- "manrabbit_tail",
-	-- "manrabbit_tail",
-	-- "manrabbit_tail",
-	-- "manrabbit_tail",
-	-- "manrabbit_tail",
 	-- "manrabbit_tail",
 	-- "armorwood",
 
@@ -2008,6 +1951,18 @@ local master_postinit = function(inst)
 		-- local isNearbyRabbit = false
 		for k, v in pairs(ents) do
 			if v.prefab then
+				-- if
+				-- then
+				-- 	if v.components.follower.leader == nil
+				-- 	then
+				-- 		if v.components.combat:TargetIs(inst) then
+				-- 			v.components.combat:SetTarget(nil)
+				-- 		end
+				-- 		inst.components.leader:AddFollower(v)
+				-- 		--lose hunger on befriending
+				-- 		inst.components.hunger:DoDelta(-12.5)
+				-- 	end
+				-- end
 				if v.prefab == "bunnyman"
 					or v.prefab == "newbunnyman"
 					or v.prefab == "everythingbunnyman"
@@ -2020,10 +1975,16 @@ local master_postinit = function(inst)
 					if item and item.prefab == "strawhat"
 					then
 						print("o item na cabeça é strawhat")
-						v.components.inventoryitem.canbepickedup = true
+						if v.components.inventoryitem ~= nil
+						then
+							v.components.inventoryitem.canbepickedup = true
+						end
 					else
 						print("n tem item ou diferente de straw")
-						v.components.inventoryitem.canbepickedup = false
+						if v.components.inventoryitem ~= nil
+						then
+							v.components.inventoryitem.canbepickedup = false
+						end
 					end
 					if v.components.follower.leader == nil
 					then
