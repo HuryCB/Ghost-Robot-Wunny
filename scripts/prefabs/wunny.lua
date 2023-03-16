@@ -1158,8 +1158,8 @@ local function OnSanityDelta(inst, data)
 		inst.components.combat:SetAttackPeriod(0.5)
 		-- inst.components.sanity:DoDelta(-TUNING.WUNNY_SANITY)
 		inst.components.sanity:SetPercent(0)
-		inst.components.combat.damagemultiplier = 1.01
-		inst.components.health:SetAbsorptionAmount(-0.1)
+		inst.components.combat.damagemultiplier = 0.91
+		inst.components.health:SetAbsorptionAmount(-0.3)
 
 		inst.components.beard.prize = "beardhair"
 		-- inst:AddTag("playermonster")
@@ -1199,12 +1199,12 @@ local function OnSanityDelta(inst, data)
 		-- inst.components.sanity.dapperness = 0
 		inst.components.sanity:DoDelta(TUNING.WUNNY_SANITY * BEARDLORD_SANITY_THRESOLD / 2)
 
-		inst.components.health:SetAbsorptionAmount(-0.2)
+		inst.components.health:SetAbsorptionAmount(-0.6)
 		inst.components.combat:SetAttackPeriod(TUNING.WILSON_ATTACK_PERIOD)
 		-- if TheWorld:HasTag("cave") then
 		-- 	inst.components.combat.damagemultiplier = 0.4
 		-- else
-		inst.components.combat.damagemultiplier = 0.4
+		inst.components.combat.damagemultiplier = 0.3
 		-- end
 		inst.components.beard.prize = "manrabbit_tail"
 		-- inst:RemoveTag("playermonster")

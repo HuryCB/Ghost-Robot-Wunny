@@ -851,6 +851,27 @@ AddRecipe2("wunnyhambatwunny", { Ingredient("manrabbit_tail", 1), Ingredient("tw
 -- { "REWARD", } -- filters )
 )
 
+AddRecipe2("wunnyumbrellawunny", { Ingredient("manrabbit_tail", 1), Ingredient("twigs", 6), Ingredient("silk", 2) },
+    TECH.SCIENCE_TWO, {
+        product = "umbrella",
+        builder_tag = "wunny",
+        nounlock = false,
+        image = "umbrella.tex"
+    },
+    { "CHARACTER" }
+-- { "REWARD", } -- filters )
+)
+
+AddRecipe2("wunnylivinglog", { Ingredient("log", 1), Ingredient("nightmarefuel", 1) },
+    TECH.MAGIC_ONE, {
+        product = "livinglog",
+        builder_tag = "wunny",
+        nounlock = false,
+        image = "livinglog.tex"
+    },
+    { "CHARACTER" }
+-- { "REWARD", } -- filters )
+)
 
 --add carrot to rabbithole drop
 AddPrefabPostInit("rabbithole", function(inst)
