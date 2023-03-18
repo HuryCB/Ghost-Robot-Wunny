@@ -37,6 +37,10 @@ PrefabFiles = {
     "spiderbunny",
     "bunnybat",
     "containerbunnyman",
+    "wunnypickcane",
+    "wunnyaxecane",
+    "wunnypickaxecane",
+    "wunnypickaxecanelantern",
 
 
     -- "wurt_turf_marsh",
@@ -86,6 +90,8 @@ Assets = {
     Asset("ATLAS", "images/rabbit_hole.xml"),
 
     Asset("ATLAS", "images/inventoryimages/birchnuthat.xml"),
+
+    -- Asset("ATLAS", "images/inventoryimages/cane.xml"),
 
     -- Asset("ATLAS", "images/inventoryimages/ham_bat.xml"),
 
@@ -859,6 +865,66 @@ AddRecipe2("wunnyumbrellawunny", { Ingredient("manrabbit_tail", 1), Ingredient("
         image = "umbrella.tex"
     },
     { "CHARACTER" }
+-- { "REWARD", } -- filters )
+)
+
+AddRecipe2("wunnypickcane", {
+     Ingredient("cane", 1), 
+     Ingredient("pickaxe", 1), 
+     Ingredient("goldenpickaxe", 1), 
+     },
+    TECH.SCIENCE_TWO, {
+        product = "wunnypickcane",
+        builder_tag = "wunny",
+        nounlock = false,
+        image = "cane.tex"
+    },
+    { "CHARACTER" }
+-- { "REWARD", } -- filters )
+)
+
+AddRecipe2("wunnyaxecane", {
+    Ingredient("cane", 1), 
+    Ingredient("axe", 1), 
+    Ingredient("goldenaxe", 1), 
+    },
+   TECH.SCIENCE_TWO, {
+       product = "wunnyaxecane",
+       builder_tag = "wunny",
+       nounlock = false,
+       image = "cane.tex"
+   },
+   { "CHARACTER" }
+-- { "REWARD", } -- filters )
+)
+
+AddRecipe2("wunnypickaxecane", {
+    Ingredient("cane", 1), 
+    Ingredient("wunnyaxecane", 1), 
+    Ingredient("wunnypickcane", 1), 
+    },
+   TECH.SCIENCE_TWO, {
+       product = "wunnypickaxecane",
+       builder_tag = "wunny",
+       nounlock = false,
+       image = "cane.tex"
+   },
+   { "CHARACTER" }
+-- { "REWARD", } -- filters )
+)
+
+AddRecipe2("wunnypicklucycane", {
+    Ingredient("cane", 1), 
+    Ingredient("lucy", 1), 
+    Ingredient("wunnypickcane", 1), 
+    },
+   TECH.SCIENCE_TWO, {
+       product = "wunnypickaxecane",
+       builder_tag = "wunny",
+       nounlock = false,
+       image = "cane.tex"
+   },
+   { "CHARACTER" }
 -- { "REWARD", } -- filters )
 )
 

@@ -44,6 +44,12 @@ local function fn()
     --weapon (from weapon component) added to pristine state for optimization
     inst:AddTag("weapon")
 
+    inst:AddTag("sharp")
+    --tool (from tool component) added to pristine state for optimization
+    inst:AddTag("tool")
+    inst:AddComponent("tool")
+    inst.components.tool:SetAction(ACTIONS.CHOP)
+
     local swap_data = {sym_build = "swap_cane"}
     MakeInventoryFloatable(inst, "med", 0.05, {0.85, 0.45, 0.85}, true, 1, swap_data)
 
@@ -54,21 +60,23 @@ local function fn()
     end
 
     inst:AddComponent("weapon")
-    inst.components.weapon:SetDamage(TUNING.CANE_DAMAGE*2)
+    inst.components.weapon:SetDamage(TUNING.CANE_DAMAGE)
 
     inst:AddComponent("inspectable")
 
     inst:AddComponent("inventoryitem")
+    -- inst.components.inventoryitem.atlasname = "cane.xml"
+    inst.components.inventoryitem.imagename = "cane"
 
     inst:AddComponent("equippable")
 
     inst.components.equippable:SetOnEquip(onequip)
     inst.components.equippable:SetOnUnequip(onunequip)
-    inst.components.equippable.walkspeedmult = TUNING.CANE_SPEED_MULT * 2
+    -- inst.components.equippable.walkspeedmult = TUNING.CANE_SPEED_MULT
 
     MakeHauntableLaunch(inst)
 
     return inst
 end
 
-return Prefab("wunnycane", fn, assets)
+return Prefab("wunnyaxecane", fn, assets)
