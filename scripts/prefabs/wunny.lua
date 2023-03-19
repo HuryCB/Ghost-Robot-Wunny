@@ -162,6 +162,11 @@ local WX78ModuleDefinitionFile = require("wx78_moduledefs")
 local GetWX78ModuleByNetID = WX78ModuleDefinitionFile.GetModuleDefinitionFromNetID
 
 local WX78ModuleDefinitions = WX78ModuleDefinitionFile.module_definitions
+
+local CHARGEREGEN_TIMERNAME = "chargeregenupdate"
+local MOISTURETRACK_TIMERNAME = "moisturetrackingupdate"
+local HUNGERDRAIN_TIMERNAME = "hungerdraintick"
+local HEATSTEAM_TIMERNAME = "heatsteam_tick"
 for mdindex, module_def in ipairs(WX78ModuleDefinitions) do
 	table.insert(prefabs, "wx78module_" .. module_def.name)
 end
@@ -380,10 +385,6 @@ end
 
 ----------------------------------------------------------------------------------------
 
-local CHARGEREGEN_TIMERNAME = "chargeregenupdate"
-local MOISTURETRACK_TIMERNAME = "moisturetrackingupdate"
-local HUNGERDRAIN_TIMERNAME = "hungerdraintick"
-local HEATSTEAM_TIMERNAME = "heatsteam_tick"
 
 ----------------------------------------------------------------------------------------
 
@@ -1974,18 +1975,42 @@ local master_postinit = function(inst)
 					local item = inst.components.inventory:GetEquippedItem(EQUIPSLOTS.HEAD)
 					if item and item.prefab == "strawhat"
 					then
-						print("o item na cabeça é strawhat")
+						-- print("o item na cabeça é strawhat")
 						if v.components.inventoryitem ~= nil
 						then
 							v.components.inventoryitem.canbepickedup = true
 						end
 					else
-						print("n tem item ou diferente de straw")
+						-- print("n tem item ou diferente de straw")
 						if v.components.inventoryitem ~= nil
 						then
 							v.components.inventoryitem.canbepickedup = false
 						end
 					end
+					--beardlordhat
+					if item and item.prefab == "beardlordhat"
+					then
+						print("o item na cabeça é beardlordhat")
+						print("tentando adicionar a tag crazy")
+						if not v:HasTag("crazy")
+						then
+							print("adicionando tag crazy")
+						    v:AddTag("crazy")
+						end
+
+					else
+						if v.prefab == "shadowbunnyman"
+						then
+							break
+						end
+
+						if v:HasTag("crazy")
+						then
+							print("tirando tag crazy")
+						    v:RemoveTag("crazy")
+						end
+					end
+					--end of beardlordhat
 					if v.components.follower.leader == nil
 					then
 						if v.components.combat:TargetIs(inst) then

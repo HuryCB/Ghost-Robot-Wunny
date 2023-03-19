@@ -521,8 +521,10 @@ shadowbunnyhouse_recipe(
 
 AddRecipe("wunnyslingshot",
     {
-        Ingredient("twigs", 2)
-        , Ingredient("mosquitosack", 3)
+        -- Ingredient("twigs", 2)
+        -- ,
+        Ingredient("mosquitosack", 1)
+        , Ingredient("slingshot", 1)
     , Ingredient("livinglog", 1)
     , Ingredient("silk", 1)
 
@@ -869,10 +871,10 @@ AddRecipe2("wunnyumbrellawunny", { Ingredient("manrabbit_tail", 1), Ingredient("
 )
 
 AddRecipe2("wunnypickcane", {
-     Ingredient("cane", 1), 
-     Ingredient("pickaxe", 1), 
-     Ingredient("goldenpickaxe", 1), 
-     },
+        Ingredient("cane", 1),
+        Ingredient("pickaxe", 1),
+        Ingredient("goldenpickaxe", 1),
+    },
     TECH.SCIENCE_TWO, {
         product = "wunnypickcane",
         builder_tag = "wunny",
@@ -884,47 +886,47 @@ AddRecipe2("wunnypickcane", {
 )
 
 AddRecipe2("wunnyaxecane", {
-    Ingredient("cane", 1), 
-    Ingredient("axe", 1), 
-    Ingredient("goldenaxe", 1), 
+        Ingredient("cane", 1),
+        Ingredient("axe", 1),
+        Ingredient("goldenaxe", 1),
     },
-   TECH.SCIENCE_TWO, {
-       product = "wunnyaxecane",
-       builder_tag = "wunny",
-       nounlock = false,
-       image = "cane.tex"
-   },
-   { "CHARACTER" }
+    TECH.SCIENCE_TWO, {
+        product = "wunnyaxecane",
+        builder_tag = "wunny",
+        nounlock = false,
+        image = "cane.tex"
+    },
+    { "CHARACTER" }
 -- { "REWARD", } -- filters )
 )
 
 AddRecipe2("wunnypickaxecane", {
-    Ingredient("cane", 1), 
-    Ingredient("wunnyaxecane", 1), 
-    Ingredient("wunnypickcane", 1), 
+        Ingredient("cane", 1),
+        Ingredient("wunnyaxecane", 1),
+        Ingredient("wunnypickcane", 1),
     },
-   TECH.SCIENCE_TWO, {
-       product = "wunnypickaxecane",
-       builder_tag = "wunny",
-       nounlock = false,
-       image = "cane.tex"
-   },
-   { "CHARACTER" }
+    TECH.SCIENCE_TWO, {
+        product = "wunnypickaxecane",
+        builder_tag = "wunny",
+        nounlock = false,
+        image = "cane.tex"
+    },
+    { "CHARACTER" }
 -- { "REWARD", } -- filters )
 )
 
 AddRecipe2("wunnypicklucycane", {
-    Ingredient("cane", 1), 
-    Ingredient("lucy", 1), 
-    Ingredient("wunnypickcane", 1), 
+        Ingredient("cane", 1),
+        Ingredient("lucy", 1),
+        Ingredient("wunnypickcane", 1),
     },
-   TECH.SCIENCE_TWO, {
-       product = "wunnypickaxecane",
-       builder_tag = "wunny",
-       nounlock = false,
-       image = "cane.tex"
-   },
-   { "CHARACTER" }
+    TECH.SCIENCE_TWO, {
+        product = "wunnypickaxecane",
+        builder_tag = "wunny",
+        nounlock = false,
+        image = "cane.tex"
+    },
+    { "CHARACTER" }
 -- { "REWARD", } -- filters )
 )
 
@@ -939,6 +941,215 @@ AddRecipe2("wunnylivinglog", { Ingredient("log", 1), Ingredient("nightmarefuel",
 -- { "REWARD", } -- filters )
 )
 
+
+--WILSON TRANSMUTATION
+AddRecipe2("wunnytransmute_log",
+    { Ingredient("twigs", 3) },
+    TECH.NONE,
+    {
+        product = "log",
+        builder_tag = "wunny",
+        -- description = "transmute_log",
+        image = "log.tex",
+    },
+    { "CHARACTER", } -- filters
+)
+AddRecipe2("wunnytransmute_twigs", { Ingredient("log", 1) }, TECH.NONE,
+    { product = "twigs", image = "twigs.tex", builder_tag = "wunny", description = "transmute_twigs", numtogive = 2 },
+    { "CHARACTER", })
+--
+AddRecipe2("wunnytransmute_bluegem", { Ingredient("redgem", 2) }, TECH.NONE,
+    { product = "bluegem", image = "bluegem.tex", builder_tag = "wunny", description = "transmute_bluegem" }
+    ,
+    { "CHARACTER", })
+AddRecipe2("wunnytransmute_redgem", { Ingredient("bluegem", 2) }, TECH.NONE,
+    { product = "redgem", image = "redgem.tex", builder_tag = "wunny", description = "transmute_redgem" },
+    { "CHARACTER", })
+AddRecipe2("wunnytransmute_purplegem", { Ingredient("bluegem", 1), Ingredient("redgem", 1) }, TECH.NONE,
+    { product = "purplegem", image = "purplegem.tex", builder_tag = "wunny", description = "transmute_purplegem" },
+    { "CHARACTER", })
+
+AddRecipe2("wunnytransmute_orangegem", { Ingredient("purplegem", 3) }, TECH.NONE,
+    {
+        product = "orangegem",
+        image = "orangegem.tex",
+        builder_tag = "wunny",
+        description = "transmute_orangegem"
+    },
+    { "CHARACTER", })
+AddRecipe2("wunnytransmute_yellowgem", { Ingredient("orangegem", 3) }, TECH.NONE,
+    {
+        product = "yellowgem",
+        image = "yellowgem.tex",
+        builder_tag = "wunny",
+        description = "transmute_yellowgem"
+    },
+    { "CHARACTER", })
+
+AddRecipe2("wunnytransmute_greengem", { Ingredient("yellowgem", 3) }, TECH.NONE,
+    { product = "greengem", image = "greengem.tex", builder_tag = "wunny", description = "transmute_greengem" },
+    { "CHARACTER", })
+AddRecipe2("wunnytransmute_opalpreciousgem",
+    { Ingredient("yellowgem", 1), Ingredient("orangegem", 1), Ingredient("greengem", 1), Ingredient("purplegem", 1),
+        Ingredient("redgem", 1), Ingredient("bluegem", 1) }, TECH.NONE,
+    {
+        product = "opalpreciousgem",
+        image = "opalpreciousgem.tex",
+        builder_tag = "wunny",
+        description = "transmute_opalpreciousgem"
+    },
+    { "CHARACTER", })
+--
+AddRecipe2("wunnytransmute_flint", { Ingredient("rocks", 3) }, TECH.NONE,
+    { product = "flint", image = "flint.tex", builder_tag = "wunny", description = "transmute_flint" },
+    { "CHARACTER", })
+AddRecipe2("wunnytransmute_rocks", { Ingredient("flint", 2) }, TECH.NONE,
+    { product = "rocks", image = "rocks.tex", builder_tag = "wunny", description = "transmute_rocks" },
+    { "CHARACTER", })
+
+AddRecipe2("wunnytransmute_goldnugget", { Ingredient("nitre", 3) }, TECH.NONE,
+    {
+        product = "goldnugget",
+        image = "goldnugget.tex",
+        builder_tag = "wunny",
+        description = "transmute_goldnugget"
+    },
+    { "CHARACTER", })
+AddRecipe2("wunnytransmute_nitre", { Ingredient("goldnugget", 2) }, TECH.NONE,
+    { product = "nitre", image = "nitre.tex", builder_tag = "wunny", description = "transmute_nitre" },
+    { "CHARACTER", })
+
+AddRecipe2("wunnytransmute_marble", { Ingredient("cutstone", 2) }, TECH.NONE,
+    { product = "marble", image = "marble.tex", builder_tag = "wunny", description = "transmute_marble" },
+    { "CHARACTER", })
+AddRecipe2("wunnytransmute_cutstone", { Ingredient("marble", 1) }, TECH.NONE,
+    { product = "cutstone", image = "cutstone.tex", builder_tag = "wunny", description = "transmute_cutstone" },
+    { "CHARACTER", })
+AddRecipe2("wunnytransmute_moonrocknugget", { Ingredient("marble", 2) }, TECH.NONE,
+    {
+        product = "moonrocknugget",
+        image = "moonrocknugget.tex",
+        builder_tag = "wunny",
+        description = "transmute_moonrocknugget"
+    },
+    { "CHARACTER", })
+--
+AddRecipe2("wunnytransmute_meat", { Ingredient("smallmeat", 3) }, TECH.NONE,
+    { product = "meat", image = "meat.tex", builder_tag = "wunny", description = "transmute_meat" },
+    { "CHARACTER", })
+AddRecipe2("wunnytransmute_smallmeat", { Ingredient("meat", 1) }, TECH.NONE,
+    {
+        product = "smallmeat",
+        image = "smallmeat.tex",
+        builder_tag = "wunny",
+        description = "transmute_smallmeat",
+        numtogive = 2
+    },
+    { "CHARACTER", })
+
+AddRecipe2("wunnytransmute_beardhair", { Ingredient("beefalowool", 2) }, TECH.NONE,
+    {
+        product = "beardhair",
+        image = "beardhair.tex",
+        builder_tag = "wunny",
+        description = "transmute_beardhair"
+    },
+    { "CHARACTER", })
+AddRecipe2("wunnytransmute_beefalowool", { Ingredient("beardhair", 2) }, TECH.NONE,
+    {
+        product = "beefalowool",
+        image = "beefalowool.tex",
+        builder_tag = "wunny",
+        description = "transmute_beefalowool"
+    },
+    { "CHARACTER", })
+
+AddRecipe2("wunnytransmute_boneshard", { Ingredient("houndstooth", 2) }, TECH.NONE,
+    {
+        product = "boneshard",
+        image = "boneshard.tex",
+        builder_tag = "wunny",
+        description = "transmute_boneshard"
+    },
+    { "CHARACTER", })
+AddRecipe2("wunnytransmute_houndstooth", { Ingredient("boneshard", 2) }, TECH.NONE,
+    {
+        product = "houndstooth",
+        image = "houndstooth.tex",
+        builder_tag = "wunny",
+        description = "transmute_houndstooth"
+    },
+    { "CHARACTER", })
+AddRecipe2("wunnytransmute_poop", { Ingredient("spoiled_food", 6) }, TECH.NONE,
+    { product = "poop", image = "poop.tex", builder_tag = "wunny", description = "transmute_poop" },
+    { "CHARACTER", })
+
+AddRecipe2("wunnytransmute_horrorfuel", { Ingredient("dreadstone", 1) }, TECH.NONE,
+    {
+        product = "horrorfuel",
+        image = "horrorfuel.tex",
+        builder_tag = "wunny",
+        description = "transmute_horrorfuel",
+        numtogive = 2
+    },
+    { "CHARACTER", })
+AddRecipe2("wunnytransmute_dreadstone", { Ingredient("horrorfuel", 3) }, TECH.NONE,
+    {
+        product = "dreadstone",
+        image = "dreadstone.tex",
+        builder_tag = "wunny",
+        description = "transmute_dreadstone"
+    },
+    { "CHARACTER", })
+AddRecipe2("wunnytransmute_nightmarefuel", { Ingredient("horrorfuel", 1) }, TECH.NONE,
+    {
+        product = "nightmarefuel",
+        image = "nightmarefuel.tex",
+        builder_tag = "wunny",
+        description = "transmute_nightmarefuel",
+        numtogive = 2
+    },
+    { "CHARACTER", })
+
+    AddRecipe2("wunnyreeds", { Ingredient("cutgrass", 3) }, TECH.NONE,
+    {
+        product = "cutreeds",
+        image = "cutreeds.tex",
+        builder_tag = "wunny",
+        description = "cutreeds",
+        numtogive = 1
+    },
+    { "CHARACTER", })
+
+    AddRecipe2("wunnygrass", { Ingredient("cutreeds", 1) }, TECH.NONE,
+    {
+        product = "cutgrass",
+        image = "cutgrass.tex",
+        builder_tag = "wunny",
+        description = "cutgrass",
+        numtogive = 3
+    },
+    { "CHARACTER", })
+
+    AddRecipe2("wunnypigskin", { Ingredient("manrabbit_tail", 1) }, TECH.NONE,
+    {
+        product = "pigskin",
+        image = "pigskin.tex",
+        builder_tag = "wunny",
+        description = "pigskin",
+        numtogive = 1
+    },
+    { "CHARACTER", })
+
+    AddRecipe2("wunnymanrabbit_tail", { Ingredient("pigskin", 1) }, TECH.NONE,
+    {
+        product = "manrabbit_tail",
+        image = "manrabbit_tail.tex",
+        builder_tag = "wunny",
+        description = "manrabbit_tail",
+        numtogive = 1
+    },
+    { "CHARACTER", })
 --add carrot to rabbithole drop
 AddPrefabPostInit("rabbithole", function(inst)
     GLOBAL.MakeInventoryPhysics(inst)

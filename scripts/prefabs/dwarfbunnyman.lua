@@ -294,9 +294,12 @@ local function NormalRetargetFn(inst)
                     -- or
                     guy:HasTag("wonkey")
                     or guy:HasTag("pirate")
-                    or (guy.components.inventory ~= nil and
-                    guy:IsNear(inst, TUNING.BUNNYMAN_SEE_MEAT_DIST) and
-                    guy.components.inventory:FindItem(is_meat) ~= nil))
+                    or (guy.components.inventory ~= nil 
+                    -- or guy:HasTag("shadowcreature")
+                    -- and
+                    -- guy:IsNear(inst, TUNING.BUNNYMAN_SEE_MEAT_DIST) and
+                    -- guy.components.inventory:FindItem(is_meat) ~= nil))
+            ))
             end,
             RETARGET_MUST_TAGS, -- see entityreplica.lua
             nil,
@@ -395,6 +398,7 @@ local function fn()
 
     inst:AddTag("cavedweller")
     inst:AddTag("character")
+    -- inst:AddTag("crazy")
     inst:AddTag("pig")
     inst:AddTag("manrabbit")
     inst:AddTag("notraptrigger")
