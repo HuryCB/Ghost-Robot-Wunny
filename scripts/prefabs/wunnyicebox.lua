@@ -55,7 +55,7 @@ local function fn()
     inst.MiniMapEntity:SetIcon("icebox.png")
 
     inst:AddTag("fridge")
-    inst:AddTag("saltbox")
+    -- inst:AddTag("saltbox")
     inst:AddTag("structure")
 
     inst.AnimState:SetBank("icebox")

@@ -667,8 +667,10 @@ local function onbecamehuman(inst, data, isloading)
 	-- Set speed when not a ghost (optional)
 	--resistencia da willow
 	inst.components.freezable:SetResistance(3)
-	inst.components.locomotor.runspeed = 7.2
-	inst.components.locomotor.walkspeed = 7.2
+	-- inst.components.locomotor.runspeed = 7.2
+	inst.components.locomotor:SetExternalSpeedMultiplier(inst,"wunnySpeed", 1.25 )
+
+	inst.components.locomotor.walkspeed = 6
 	inst.runningSpeed = 1.2
 
 	--Wanda
@@ -1284,25 +1286,28 @@ end
 
 
 local caveDay = function(inst)
-	inst.components.locomotor.runspeed = 7.8
-	inst.components.locomotor.walkspeed = 7.8
+	-- inst.components.locomotor.runspeed = 7.8
+	-- inst.components.locomotor.walkspeed = 7.8
 	inst.runningSpeed = 1.3
+	inst.components.locomotor:SetExternalSpeedMultiplier(inst,"wunnySpeed", 1.3 )
 	-- print("print caveday")
 end
 
 local caveDusk = function(inst)
-	inst.components.locomotor.runspeed = 7.5
-	inst.components.locomotor.walkspeed = 7.5
+	-- inst.components.locomotor.runspeed = 7.5
+	-- inst.components.locomotor.walkspeed = 7.5
 	inst.runningSpeed = 1.25
+	inst.components.locomotor:SetExternalSpeedMultiplier(inst,"wunnySpeed", 1.25 )
 	-- print("print cavedusk")
 end
 
 local caveNight = function(inst)
 	if TheWorld.state.iscavenight
 	then
-		inst.components.locomotor.runspeed = 7.2
-		inst.components.locomotor.walkspeed = 7.2
+		-- inst.components.locomotor.runspeed = 7.2
+		-- inst.components.locomotor.walkspeed = 7.2
 		inst.runningSpeed = 1.2
+		inst.components.locomotor:SetExternalSpeedMultiplier(inst,"wunnySpeed", 1.2 )
 		-- print("print cavenight")
 	end
 end
@@ -1330,21 +1335,24 @@ local caveBehaviour = function(inst)
 end
 
 local surfaceDay = function(inst)
-	inst.components.locomotor.runspeed = 7.8
-	inst.components.locomotor.walkspeed = 7.8
+	-- inst.components.locomotor.runspeed = 7.8
+	-- inst.components.locomotor.walkspeed = 7.8
 	inst.runningSpeed = 1.3
+	inst.components.locomotor:SetExternalSpeedMultiplier(inst,"wunnySpeed", 1.3 )
 end
 
 local surfaceDusk = function(inst)
-	inst.components.locomotor.runspeed = 7.5
-	inst.components.locomotor.walkspeed = 7.5
+	-- inst.components.locomotor.runspeed = 7.5
+	-- inst.components.locomotor.walkspeed = 7.5
 	inst.runningSpeed = 1.25
+	inst.components.locomotor:SetExternalSpeedMultiplier(inst,"wunnySpeed", 1.25 )
 end
 
 local surfaceNight = function(inst)
-	inst.components.locomotor.runspeed = 7.2
-	inst.components.locomotor.walkspeed = 7.2
+	-- inst.components.locomotor.runspeed = 7.2
+	-- inst.components.locomotor.walkspeed = 7.2
 	inst.runningSpeed = 1.2
+	inst.components.locomotor:SetExternalSpeedMultiplier(inst,"wunnySpeed", 1.2 )
 end
 
 local surfaceBehaviour = function(inst)
