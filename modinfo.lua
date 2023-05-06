@@ -1,6 +1,6 @@
 -- This information tells other players more about the mod
 name = "Wunny GhostRobot version"
-description = "Wunny, the GhostRobot bunny/rabbit man. "
+description = "Wunny, the GhostRobot bunnyman. "
 author = "Hury"
 version = "1.0.0" -- This is the version of the template. Change it to your own number.
 
