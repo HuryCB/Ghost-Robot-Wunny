@@ -961,6 +961,10 @@ local common_postinit = function(inst)
 	inst:AddTag("masterchef")
 	inst:AddTag("professionalchef")
 
+	--WoodLegs
+	inst:AddTag("woodlegs")
+    inst:AddTag("piratecaptain")
+
 	--Walter
 	inst:AddTag("pebblemaker")
 	-- inst:AddTag("pinetreepioneer")

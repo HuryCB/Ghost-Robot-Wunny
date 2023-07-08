@@ -58,27 +58,27 @@ return {
         inst.components.inventoryitem.imagename = "bunny"
         inst.components.inventoryitem.atlasname = "images/inventoryimages/bunny.xml"
         MakeFeedableSmallLivestock(inst, 9000000, nil, nil)
-        inst:ListenForEvent("onpickup", function()
-            local item = inst.components.inventory:GetEquippedItem(EQUIPSLOTS.HANDS)
-            if item then
-                inst.components.inventory:DropItem(item)
-            end
+        -- inst:ListenForEvent("onpickup", function()
+        --     local item = inst.components.inventory:GetEquippedItem(EQUIPSLOTS.HANDS)
+        --     if item then
+        --         inst.components.inventory:DropItem(item)
+        --     end
 
-            local item = inst.components.inventory:GetEquippedItem(EQUIPSLOTS.BODY)
-            if item then
-                inst.components.inventory:DropItem(item)
-            end
+        --     local item = inst.components.inventory:GetEquippedItem(EQUIPSLOTS.BODY)
+        --     if item then
+        --         inst.components.inventory:DropItem(item)
+        --     end
 
-            local item = inst.components.inventory:GetEquippedItem(EQUIPSLOTS.BACK)
-            if item then
-                inst.components.inventory:DropItem(item)
-            end
+        --     local item = inst.components.inventory:GetEquippedItem(EQUIPSLOTS.BACK)
+        --     if item then
+        --         inst.components.inventory:DropItem(item)
+        --     end
 
-            local item = inst.components.inventory:GetEquippedItem(EQUIPSLOTS.HEAD)
-            if item then
-                inst.components.inventory:DropItem(item)
-            end
-        end)
+        --     local item = inst.components.inventory:GetEquippedItem(EQUIPSLOTS.HEAD)
+        --     if item then
+        --         inst.components.inventory:DropItem(item)
+        --     end
+        -- end)
     end,
     --260 vida cada
     --20 atk cada

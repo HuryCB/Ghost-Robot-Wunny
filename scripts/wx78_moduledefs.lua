@@ -362,7 +362,7 @@ local LIGHT_R, LIGHT_G, LIGHT_B = 235 / 255, 121 / 255, 12 / 255
 local function light_activate(inst, wx)
     wx._light_modules = (wx._light_modules or 0) + 1
 
-    wx.Light:SetRadius(TUNING.WX78_LIGHT_BASERADIUS + (wx._light_modules - 1) * TUNING.WX78_LIGHT_EXTRARADIUS)
+    wx.Light:SetRadius(TUNING.WX78_LIGHT_BASERADIUS * 2 + (wx._light_modules - 1) * TUNING.WX78_LIGHT_EXTRARADIUS)
     
     -- If we had 0 before, set up the light properties.
     if wx._light_modules == 1 then
