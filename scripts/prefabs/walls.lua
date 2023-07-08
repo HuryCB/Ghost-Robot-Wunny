@@ -163,6 +163,20 @@ function MakeWallType(data)
     end
 
     local function onhammered(inst, worker)
+        print("hammered")
+        print(worker)
+        -- if data.maxloots ~= nil and data.loot ~= nil then
+        --     print(inst.components.health:GetPercent())
+        --     inst.components.health:SetCurrentHealth(  inst.components.health.currenthealth + 200 ) 
+        --     local num_loots =  math.floor(6 * inst.components.health:GetPercent()) 
+        --     print(num_loots)
+        --     print( inst.components.health.maxhealth)
+        --     print( inst.components.health.currenthealth)
+        --     for i = 1, num_loots do
+        --         inst.components.lootdropper:SpawnLootPrefab(data.loot)
+        --     end
+        -- end
+
         if data.maxloots ~= nil and data.loot ~= nil then
             local num_loots = math.max(1, math.floor(data.maxloots * inst.components.health:GetPercent()))
             for i = 1, num_loots do
@@ -214,9 +228,6 @@ function MakeWallType(data)
             inst.components.inventoryitem:SetSinks(true)
         end
 
-        -- inst.components.inventoryitem.canbepickedup = true
-        -- inst.components.inventoryitem.canbepickedupalive = true
-        
         inst:AddComponent("repairer")
 
         inst.components.repairer.repairmaterial = data.name == "ruins" and MATERIALS.THULECITE or data.name
@@ -239,7 +250,23 @@ function MakeWallType(data)
         return inst
     end
 
-    local function onhit(inst)
+    local function onhit(inst, attacker)
+        print("hit")
+        if attacker then
+            print(attacker)
+            if attacker.components ~= nil then
+                print(attacker.components)
+                if attacker.components.inventory ~= nil then
+                    local hasWeapon = inst.components.inventory:GetEquippedItem(EQUIPSLOTS.HANDS)
+                    print(hasWeapon)
+                end
+              
+            end
+            if attacker.attacker then
+                print(attacker.attacker)
+            end
+        end
+       
         if data.material ~= nil then
             inst.SoundEmitter:PlaySound("dontstarve/common/destroy_"..data.material)
         end
@@ -250,6 +277,23 @@ function MakeWallType(data)
             inst.AnimState:PlayAnimation(anim_to_play.."_hit")
             inst.AnimState:PushAnimation(anim_to_play, false)
         end
+    end
+
+    local function onhithammer(inst, attacker)
+        print("onhithammer")
+        if data.material ~= nil then
+            inst.SoundEmitter:PlaySound("dontstarve/common/destroy_"..data.material)
+        end
+
+        local healthpercent = inst.components.health:GetPercent()
+        print(healthpercent)
+        if healthpercent > 0 then
+            local anim_to_play = resolveanimtoplay(inst, healthpercent)
+            inst.AnimState:PlayAnimation(anim_to_play.."_hit")
+            inst.AnimState:PushAnimation(anim_to_play, false)
+        end
+
+        onhammered(inst)
     end
 
     local function onrepaired(inst)
@@ -308,14 +352,7 @@ function MakeWallType(data)
             return inst
         end
 
-        -- inst:AddComponent("inspectable")
-        inst:AddComponent("inventoryitem")
-        -- if not item_floats then
-        --     inst.components.inventoryitem:SetSinks(true)
-        -- end
-
-        -- inst.components.inventoryitem.canbepickedup = true
-        -- inst.components.inventoryitem.canbepickedupalive = true
+        inst:AddComponent("inspectable")
         inst:AddComponent("lootdropper")
 
         inst:AddComponent("repairable")
@@ -361,8 +398,8 @@ function MakeWallType(data)
         inst:AddComponent("workable")
         inst.components.workable:SetWorkAction(ACTIONS.HAMMER)
         inst.components.workable:SetWorkLeft(data.name == MATERIALS.MOONROCK and TUNING.MOONROCKWALL_WORK or 3)
-        inst.components.workable:SetOnFinishCallback(onhammered)
-        inst.components.workable:SetOnWorkCallback(onhit)
+        -- inst.components.workable:SetOnFinishCallback(onhammered)
+        inst.components.workable:SetOnWorkCallback(onhithammer)
 
         MakeHauntableWork(inst)
 
