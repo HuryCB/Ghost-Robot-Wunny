@@ -728,6 +728,7 @@ local function fn()
     inst.components.combat:SetAttackPeriod(TUNING.BUNNYMAN_ATTACK_PERIOD * 90 / 100)
     inst.components.combat:SetKeepTargetFunction(NormalKeepTargetFn)
     inst.components.combat:SetRetargetFunction(3, NormalRetargetFn)
+    inst.components.combat:SetRange(3+1)
 
     inst.components.locomotor.runspeed = TUNING.BUNNYMAN_RUN_SPEED * 130 / 100
     inst.components.locomotor.walkspeed = TUNING.BUNNYMAN_WALK_SPEED * 130 / 100

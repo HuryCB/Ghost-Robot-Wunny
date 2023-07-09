@@ -163,12 +163,10 @@ function MakeWallType(data)
     end
 
     local function onhammered(inst, worker)
-        print("hammered")
-        print(worker)
-        -- if data.maxloots ~= nil and data.loot ~= nil then
+        --   if data.maxloots ~= nil and data.loot ~= nil then
         --     print(inst.components.health:GetPercent())
         --     inst.components.health:SetCurrentHealth(  inst.components.health.currenthealth + 200 ) 
-        --     local num_loots =  math.floor(6 * inst.components.health:GetPercent()) 
+        --     local num_loots =  math.floor(inst.components.health:GetPercent()) 
         --     print(num_loots)
         --     print( inst.components.health.maxhealth)
         --     print( inst.components.health.currenthealth)
@@ -220,7 +218,7 @@ function MakeWallType(data)
         end
 
         inst:AddComponent("stackable")
-        inst.components.stackable.maxsize = TUNING.STACK_SIZE_MEDITEM
+        inst.components.stackable.maxsize = TUNING.STACK_SIZE_LARGEITEM
 
         inst:AddComponent("inspectable")
         inst:AddComponent("inventoryitem")
@@ -231,7 +229,7 @@ function MakeWallType(data)
         inst:AddComponent("repairer")
 
         inst.components.repairer.repairmaterial = data.name == "ruins" and MATERIALS.THULECITE or data.name
-        inst.components.repairer.healthrepairvalue = data.maxhealth / 6
+        inst.components.repairer.healthrepairvalue = data.maxhealth / 4
 
         if data.flammable then
             MakeSmallBurnable(inst, TUNING.MED_BURNTIME)
@@ -250,23 +248,7 @@ function MakeWallType(data)
         return inst
     end
 
-    local function onhit(inst, attacker)
-        print("hit")
-        if attacker then
-            print(attacker)
-            if attacker.components ~= nil then
-                print(attacker.components)
-                if attacker.components.inventory ~= nil then
-                    local hasWeapon = inst.components.inventory:GetEquippedItem(EQUIPSLOTS.HANDS)
-                    print(hasWeapon)
-                end
-              
-            end
-            if attacker.attacker then
-                print(attacker.attacker)
-            end
-        end
-       
+    local function onhit(inst)
         if data.material ~= nil then
             inst.SoundEmitter:PlaySound("dontstarve/common/destroy_"..data.material)
         end
@@ -277,23 +259,6 @@ function MakeWallType(data)
             inst.AnimState:PlayAnimation(anim_to_play.."_hit")
             inst.AnimState:PushAnimation(anim_to_play, false)
         end
-    end
-
-    local function onhithammer(inst, attacker)
-        print("onhithammer")
-        if data.material ~= nil then
-            inst.SoundEmitter:PlaySound("dontstarve/common/destroy_"..data.material)
-        end
-
-        local healthpercent = inst.components.health:GetPercent()
-        print(healthpercent)
-        if healthpercent > 0 then
-            local anim_to_play = resolveanimtoplay(inst, healthpercent)
-            inst.AnimState:PlayAnimation(anim_to_play.."_hit")
-            inst.AnimState:PushAnimation(anim_to_play, false)
-        end
-
-        onhammered(inst)
     end
 
     local function onrepaired(inst)
@@ -399,7 +364,7 @@ function MakeWallType(data)
         inst.components.workable:SetWorkAction(ACTIONS.HAMMER)
         inst.components.workable:SetWorkLeft(data.name == MATERIALS.MOONROCK and TUNING.MOONROCKWALL_WORK or 3)
         -- inst.components.workable:SetOnFinishCallback(onhammered)
-        inst.components.workable:SetOnWorkCallback(onhithammer)
+        inst.components.workable:SetOnWorkCallback(onhammered)
 
         MakeHauntableWork(inst)
 

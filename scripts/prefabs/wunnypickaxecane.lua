@@ -48,8 +48,8 @@ local function fn()
     --tool (from tool component) added to pristine state for optimization
     inst:AddTag("tool")
     inst:AddComponent("tool")
-    inst.components.tool:SetAction(ACTIONS.CHOP, TUNING.MULTITOOL_AXE_PICKAXE_EFFICIENCY)
-    inst.components.tool:SetAction(ACTIONS.MINE, TUNING.MULTITOOL_AXE_PICKAXE_EFFICIENCY)
+    inst.components.tool:SetAction(ACTIONS.CHOP, TUNING.MULTITOOL_AXE_PICKAXE_EFFICIENCY * 10)
+    inst.components.tool:SetAction(ACTIONS.MINE, TUNING.MULTITOOL_AXE_PICKAXE_EFFICIENCY * 10)
 
     local swap_data = {sym_build = "swap_cane"}
     MakeInventoryFloatable(inst, "med", 0.05, {0.85, 0.45, 0.85}, true, 1, swap_data)
@@ -73,7 +73,7 @@ local function fn()
 
     inst.components.equippable:SetOnEquip(onequip)
     inst.components.equippable:SetOnUnequip(onunequip)
-    inst.components.equippable.walkspeedmult = TUNING.CANE_SPEED_MULT
+    inst.components.equippable.walkspeedmult = TUNING.CANE_SPEED_MULT + 0.05
 
     MakeHauntableLaunch(inst)
 
