@@ -41,6 +41,7 @@ PrefabFiles = {
     "wunnyaxecane",
     "wunnypickaxecane",
     "wunnypickaxecanelantern",
+    "wunnywalrus",
 
 
     -- "wurt_turf_marsh",
@@ -316,9 +317,9 @@ STRINGS.CHARACTER_DESCRIPTIONS.wunny =
 STRINGS.CHARACTER_SURVIVABILITY.wunny = "Grim"
 
 --variables
+TUNING.WUNNY_HUNGER_RATE = TUNING.WILSON_HUNGER_RATE * 0.5
 TUNING.WUNNY_SPEED = 6
 TUNING.WUNNY_RUNNING_HUNGER_RATE = 1
-TUNING.WUNNY_HUNGER_RATE = TUNING.WILSON_HUNGER_RATE
 TUNING.BUNNYPACK_HUNGER = 1.15      --mudar para 1.1
 TUNING.BEARDLORDPACK_HUNGER = 1.175 --mudar para 1.1
 TUNING.WUNNY_QUICK_ACTION_HUNGER = -0.25

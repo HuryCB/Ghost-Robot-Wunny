@@ -1173,7 +1173,7 @@ local function OnSanityDelta(inst, data)
 		-- inst:AddTag("monster")
 		inst.components.skinner:SetSkinMode("beardlord_skin", "wilson")
 		if inst.components.eater ~= nil then
-			inst.components.eater:SetDiet({ FOODGROUP.OMNI }, { FOODTYPE.MEAT, FOODTYPE.GOODIES })
+			-- inst.components.eater:SetDiet({ FOODGROUP.OMNI }, { FOODTYPE.MEAT, FOODTYPE.GOODIES })
 			inst.components.eater:SetStrongStomach(true)
 			inst.components.eater:SetCanEatRawMeat(true)
 		end
@@ -1221,7 +1221,7 @@ local function OnSanityDelta(inst, data)
 		-- inst.components.sanityaura.aura = 0
 		inst.components.skinner:SetSkinMode("normal_skin", "wilson")
 		if inst.components.eater ~= nil then
-			inst.components.eater:SetDiet({ FOODGROUP.VEGETARIAN }, { FOODGROUP.VEGETARIAN, FOODTYPE.GOODIES })
+			-- inst.components.eater:SetDiet({ FOODGROUP.VEGETARIAN }, { FOODGROUP.VEGETARIAN, FOODTYPE.GOODIES })
 			inst.components.eater:SetStrongStomach(false)
 			inst.components.eater:SetCanEatRawMeat(false)
 		end
@@ -1891,7 +1891,9 @@ local master_postinit = function(inst)
 
 	inst:ListenForEvent("death", onbecameghost)
 
-	inst.components.foodaffinity:AddFoodtypeAffinity(FOODTYPE.VEGGIE, 1.33)
+	inst.components.foodaffinity:AddFoodtypeAffinity(FOODTYPE.VEGGIE, 0.8)
+	inst.components.foodaffinity:AddFoodtypeAffinity(FOODTYPE.MEAT, 0.8)
+	-- inst.components.foodaffinity:AddFoodtypeAffinity(FOODTYPE.OMNI, 0.8)
 	inst.components.foodaffinity:AddPrefabAffinity("carrot", 1.5)
 	inst.components.foodaffinity:AddPrefabAffinity("carrot_cooked", 1.5)
 
@@ -1903,9 +1905,9 @@ local master_postinit = function(inst)
 	inst:AddComponent("preserver")
 	-- inst.components.preserver:SetPerishRateMultiplier(CarrotPreserverRate)
 
-	if inst.components.eater ~= nil then
-		inst.components.eater:SetDiet({ FOODGROUP.VEGETARIAN }, { FOODGROUP.VEGETARIAN, FOODTYPE.GOODIES })
-	end
+	-- if inst.components.eater ~= nil then
+	-- 	inst.components.eater:SetDiet({ FOODGROUP.VEGETARIAN }, { FOODGROUP.VEGETARIAN, FOODTYPE.GOODIES })
+	-- end
 
 	inst.components.locomotor:SetFasterOnGroundTile(WORLD_TILES.SAVANNA, true)
 	inst.components.locomotor:SetFasterOnGroundTile(WORLD_TILES.SINKHOLE, true)
@@ -1914,10 +1916,10 @@ local master_postinit = function(inst)
 		if inst.sg ~= nil and inst.sg:HasStateTag("moving") then
 			-- inst.components.hunger:SetRate(
 			-- 	inst.runningSpeed
-			-- -- * TUNING.WILSON_HUNGER_RATE *
+			-- -- * TUNING.WUNNY_HUNGER_RATE *
 			-- --  TUNING.WUNNY_HUNGER_RATE
 			-- ) --1.20
-			inst.components.hunger.hungerrate = inst.runningSpeed * TUNING.WILSON_HUNGER_RATE
+			inst.components.hunger.hungerrate = inst.runningSpeed * TUNING.WUNNY_HUNGER_RATE
 			-- print("Runspeed ", inst.components.locomotor:GetRunSpeed())
 			-- print("Multspeed ", inst.components.locomotor:GetSpeedMultiplier())
 			-- print("Walkspeed ", inst.components.locomotor:GetWalkSpeed())
@@ -1926,10 +1928,10 @@ local master_postinit = function(inst)
 			-- 	inst.components.hunger:SetRate(
 			-- 		-- 1
 			-- 	-- *
-			-- 	TUNING.WILSON_HUNGER_RATE
+			-- 	TUNING.WUNNY_HUNGER_RATE
 			-- 	-- * TUNING.WUNNY_HUNGER_RATE
 			-- )
-			inst.components.hunger.hungerrate = TUNING.WILSON_HUNGER_RATE
+			inst.components.hunger.hungerrate = TUNING.WUNNY_HUNGER_RATE
 		end
 	end)
 
