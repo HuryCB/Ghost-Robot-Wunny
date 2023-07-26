@@ -461,6 +461,7 @@ local function fn()
     inst:AddTag("cavedweller")
     inst:AddTag("character")
     inst:AddTag("crazy")
+    inst:AddTag("shadow")
 
     -- inst:AddTag("crazy")
     -- inst:AddTag("pig")

@@ -42,17 +42,22 @@ PrefabFiles = {
     "wunnypickaxecane",
     "wunnypickaxecanelantern",
     "wunnywalrus",
+    "hutch_fishbowl",
+    "cinnabunnfarm",
 
 
     -- "wurt_turf_marsh",
     -- "modhats",
 
     "wunnyslingshot",
-    "wunnyicebox"
+    "wunnyicebox",
     -- "beardlordback"
 }
 
 Assets = {
+    Asset( "IMAGE", "images/map_icons/cinnabunnfarm.tex" ),
+	Asset( "ATLAS", "images/map_icons/cinnabunnfarm.xml" ),
+
     Asset("IMAGE", "images/saveslot_portraits/wunny.tex"),
     Asset("ATLAS", "images/saveslot_portraits/wunny.xml"),
 
@@ -125,7 +130,7 @@ Assets = {
 
 
 }
-
+AddMinimapAtlas("images/map_icons/cinnabunnfarm.xml")
 AddMinimapAtlas("images/map_icons/wunny.xml")
 AddMinimapAtlas("images/map_icons/coolerpack.xml")
 AddMinimapAtlas("images/map_icons/beardlordpack.xml")
@@ -231,6 +236,36 @@ AddRecipe("beardlordpack", {
     "beardlordpack.tex")
 --end of beardlordpack
 
+--hutch_fishbowl
+AddRecipe("hutch_fishbowl", {
+        Ingredient("pondeel", 1) --4
+        , Ingredient("nightmarefuel", 1),
+        -- Ingredient("rope", 2)
+        -- , Ingredient("beardhair", 2)
+    },
+    RECIPETABS.MAGIC_ONE
+    , TECH.NONE, nil,
+    nil,
+    nil,
+    nil,
+    "wunny")
+--fim
+
+AddRecipe("armor_bramble", { Ingredient("log", 6), Ingredient("stinger", 3) }, RECIPETABS.WAR
+    , TECH.NONE, nil,
+    nil,
+    nil,
+    nil,
+    "wunny")
+
+AddRecipe("trap_bramble", { Ingredient("log", 1), Ingredient("stinger", 1) },
+    RECIPETABS.WAR
+    , TECH.NONE, nil,
+    nil,
+    nil,
+    nil,
+    "wunny")
+
 local containers_widgetsetup_custom = containers.widgetsetup
 local MAXITEMSLOTS = containers.MAXITEMSLOTS
 
@@ -322,7 +357,7 @@ TUNING.WUNNY_SPEED = 6
 TUNING.WUNNY_RUNNING_HUNGER_RATE = 1
 TUNING.BUNNYPACK_HUNGER = 1.15      --mudar para 1.1
 TUNING.BEARDLORDPACK_HUNGER = 1.175 --mudar para 1.1
-TUNING.WUNNY_QUICK_ACTION_HUNGER = -0.25
+TUNING.WUNNY_QUICK_ACTION_HUNGER = -0.3
 -- TUNING.WUNNY_KING_
 -- TUNING.SHADOWBUNNYMAN_ATTACK_PERIOD =
 -- WUNNY_RUNNING_HUNGER_RATETUNNIN.WUNNY_IDLE_HUNGER_RATE = 1
@@ -377,6 +412,20 @@ end
 
 rabbithole_recipe({ Ingredient("carrot", 2), Ingredient("rabbit", 2), Ingredient("shovel", 1) }, TECH.NONE)
 STRINGS.RECIPE_DESC.RABBITHOLE = "A new home for the rabbits."
+
+local cinnabunnfarm_recipe = AddRecipe("cinnabunnfarm", { Ingredient("boards", 3), Ingredient("guano", 3)}, RECIPETABS.FARM, TECH.NONE, "cinnabunnfarm_placer", 2.5, nil, nil, "wunny", "images/inventoryimages/cinnabunnfarm.xml" )
+cinnabunnfarm_recipe.sortkey = -8112 -- Put at top
+
+STRINGS.NAMES.CINNABUNNFARM = "Carrot Planter"
+STRINGS.CHARACTERS.GENERIC.DESCRIBE.CINNABUNNFARM = {
+	STUFFED = "That's a lot of carrots!",
+	SOME = "It should keep growing now.",
+	EMPTY = "A carrot to grow carrots in.",
+	ROTTEN = "It needs some guano.",
+	BURNT = "The carrot planter's roasted.",
+	SNOWCOVERED = "I don't think it can grow in this cold.",
+}
+STRINGS.RECIPE_DESC.CINNABUNNFARM = "Grow your own carrots!"
 
 --newbunnymanhouse
 local function bunnyhouse_recipe(ingredientes, level)
@@ -1112,7 +1161,7 @@ AddRecipe2("wunnytransmute_nightmarefuel", { Ingredient("horrorfuel", 1) }, TECH
     },
     { "CHARACTER", })
 
-    AddRecipe2("wunnyreeds", { Ingredient("cutgrass", 3) }, TECH.NONE,
+AddRecipe2("wunnyreeds", { Ingredient("cutgrass", 3) }, TECH.NONE,
     {
         product = "cutreeds",
         image = "cutreeds.tex",
@@ -1122,7 +1171,7 @@ AddRecipe2("wunnytransmute_nightmarefuel", { Ingredient("horrorfuel", 1) }, TECH
     },
     { "CHARACTER", })
 
-    AddRecipe2("wunnygrass", { Ingredient("cutreeds", 1) }, TECH.NONE,
+AddRecipe2("wunnygrass", { Ingredient("cutreeds", 1) }, TECH.NONE,
     {
         product = "cutgrass",
         image = "cutgrass.tex",
@@ -1132,7 +1181,7 @@ AddRecipe2("wunnytransmute_nightmarefuel", { Ingredient("horrorfuel", 1) }, TECH
     },
     { "CHARACTER", })
 
-    AddRecipe2("wunnypigskin", { Ingredient("manrabbit_tail", 1) }, TECH.NONE,
+AddRecipe2("wunnypigskin", { Ingredient("manrabbit_tail", 1) }, TECH.NONE,
     {
         product = "pigskin",
         image = "pigskin.tex",
@@ -1142,7 +1191,7 @@ AddRecipe2("wunnytransmute_nightmarefuel", { Ingredient("horrorfuel", 1) }, TECH
     },
     { "CHARACTER", })
 
-    AddRecipe2("wunnymanrabbit_tail", { Ingredient("pigskin", 1) }, TECH.NONE,
+AddRecipe2("wunnymanrabbit_tail", { Ingredient("pigskin", 1) }, TECH.NONE,
     {
         product = "manrabbit_tail",
         image = "manrabbit_tail.tex",
@@ -1270,12 +1319,12 @@ AddStategraphPostInit("wilson", function(sg)
 
         return (inst.components.rider ~= nil and inst.components.rider:IsRiding() and "dolongaction")
             or (action.target ~= nil
-            and action.target.components.pickable ~= nil
-            and ((action.target.components.pickable.jostlepick and "dojostleaction") or
-            (action.target.components.pickable.quickpick and "doshortaction") or
-            (inst:HasTag("fastpicker") and "doshortaction") or
-            (inst:HasTag("quagmire_fasthands") and "domediumaction") or
-            "dolongaction"))
+                and action.target.components.pickable ~= nil
+                and ((action.target.components.pickable.jostlepick and "dojostleaction") or
+                    (action.target.components.pickable.quickpick and "doshortaction") or
+                    (inst:HasTag("fastpicker") and "doshortaction") or
+                    (inst:HasTag("quagmire_fasthands") and "domediumaction") or
+                    "dolongaction"))
             or nil
     end)
     sg.actionhandlers[GLOBAL.ACTIONS.TAKEITEM] = GLOBAL.ActionHandler(GLOBAL.ACTIONS.TAKEITEM, function(inst, action)
@@ -1381,7 +1430,7 @@ AddStategraphPostInit("wilson", function(sg)
     sg.actionhandlers[GLOBAL.ACTIONS.BUILD] = GLOBAL.ActionHandler(GLOBAL.ACTIONS.BUILD, function(inst, action)
         -- local rec = GetValidRecipe(action.recipe)
         if inst:HasTag("wunny") then
-            inst.components.hunger:DoDelta(TUNING.WUNNY_QUICK_ACTION_HUNGER)
+            inst.components.hunger:DoDelta(TUNING.WUNNY_QUICK_ACTION_HUNGER * 2)
             return "doshortaction"
         end
         return

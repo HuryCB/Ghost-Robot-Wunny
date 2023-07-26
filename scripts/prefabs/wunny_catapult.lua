@@ -432,6 +432,7 @@ local function fn()
     inst:AddTag("engineering")
     inst:AddTag("catapult")
     inst:AddTag("structure")
+    inst:AddTag("crazy")
 
     inst.AnimState:SetBank("winona_catapult")
     inst.AnimState:SetBuild("winona_catapult")

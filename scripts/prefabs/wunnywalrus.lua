@@ -39,6 +39,14 @@ local function ShareTargetFn(dude)
     return dude:HasTag("walrus") and not dude.components.health:IsDead()
 end
 
+
+local function SuggestTreeTarget(inst, data)
+    local ba = inst:GetBufferedAction()
+    if data ~= nil and data.tree ~= nil and (ba == nil or ba.action ~= ACTIONS.CHOP) then
+        inst.tree_target = data.tree
+    end
+end
+
 local function OnAttacked(inst, data)
     inst.components.combat:SetTarget(data.attacker)
     inst.components.combat:ShareTarget(data.attacker, 30, ShareTargetFn, 5)
@@ -151,23 +159,28 @@ local RETARGET_MUST_TAGS = { "_combat", "_health" }
 local RETARGET_ONEOF_TAGS = { "monster", "player", "pirate" }
 local function NormalRetargetFn(inst)
     return not inst:IsInLimbo()
-    and FindEntity(
-        inst,
-        TUNING.PIG_TARGET_DIST,
-        function(guy)
-            return inst.components.combat:CanTarget(guy)
-                and (guy:HasTag("monster")
-                    or guy:HasTag("wonkey")
+        and FindEntity(
+            inst,
+            TUNING.PIG_TARGET_DIST,
+            function(guy)
+                return inst.components.combat:CanTarget(guy)
+                    and
+                    (
+                    -- guy:HasTag("monster")--talvez tirando isso para de atacar spider
+                    -- or
+                    guy:HasTag("wonkey")
                     or guy:HasTag("pirate")
-                    or (guy.components.inventory ~= nil and
-                        guy:IsNear(inst, TUNING.BUNNYMAN_SEE_MEAT_DIST) and
-                        guy.components.inventory:FindItem(is_meat) ~= nil))
-        end,
-        RETARGET_MUST_TAGS, -- see entityreplica.lua
-        nil,
-        RETARGET_ONEOF_TAGS
-    )
-    or nil
+                    -- or (guy.components.inventory ~= nil and
+                    --     guy:IsNear(inst, TUNING.BUNNYMAN_SEE_MEAT_DIST) and
+                    --     guy.components.inventory:FindItem(is_meat) ~= nil)
+                    -- or guy:HasTag("shadowcreature")
+                    )
+            end,
+            RETARGET_MUST_TAGS, -- see entityreplica.lua
+            nil,
+            RETARGET_ONEOF_TAGS
+        )
+        or nil
 end
 
 local function create_common(build, scale, tag)
@@ -205,8 +218,8 @@ local function create_common(build, scale, tag)
     end
 
     inst:AddComponent("locomotor")
-    inst.components.locomotor.runspeed = 6
-    inst.components.locomotor.walkspeed = 6
+    inst.components.locomotor.runspeed = 4
+    inst.components.locomotor.walkspeed = 4
 
     inst:SetStateGraph("SGwalrus")
     inst.soundgroup = "mctusk"
@@ -263,11 +276,14 @@ local function create_common(build, scale, tag)
     inst:ListenForEvent("attacked", OnAttacked)
     inst:ListenForEvent("newcombattarget", OnNewTarget)
 
+    inst:ListenForEvent("suggest_tree_target", SuggestTreeTarget)
+
+
     inst:WatchWorldState("stopday", OnStopDay)
 
     inst.OnEntitySleep = OnEntitySleep
 
-    inst:DoTaskInTime(1, EquipBlowdart)
+    inst:DoTaskInTime(0.8, EquipBlowdart)
 
     inst.OnSave = OnSave
     inst.OnLoad = OnLoad

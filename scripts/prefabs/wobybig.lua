@@ -274,7 +274,7 @@ local function fn()
     inst.components.locomotor:SetAllowPlatformHopping(true)
 
     inst:AddComponent("container")
-    inst.components.container:WidgetSetup("wobybig")
+    inst.components.container:WidgetSetup("dragonflychest")
 
     inst:AddComponent("embarker")
     inst:AddComponent("drownable")
