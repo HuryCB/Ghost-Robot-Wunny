@@ -350,8 +350,8 @@ local function fn()
     inst.components.talker.ontalk = ontalk
 
     inst:AddComponent("locomotor") -- locomotor must be constructed before the stategraph
-    inst.components.locomotor.runspeed = TUNING.PIG_RUN_SPEED * 2.2 -- account for them being stopped for part of their anim
-    inst.components.locomotor.walkspeed = TUNING.PIG_WALK_SPEED * 1.9 -- account for them being stopped for part of their anim
+    inst.components.locomotor.runspeed = TUNING.PIG_RUN_SPEED * 2.7 -- account for them being stopped for part of their anim
+    inst.components.locomotor.walkspeed = TUNING.PIG_WALK_SPEED * 2.3 -- account for them being stopped for part of their anim
 
     -- boat hopping setup
        inst.components.locomotor:SetFasterOnGroundTile(WORLD_TILES.SAVANNA, true)
@@ -443,8 +443,8 @@ local function fn()
     inst.components.combat:SetKeepTargetFunction(NormalKeepTargetFn)
     inst.components.combat:SetRetargetFunction(3, NormalRetargetFn)
 
-    inst.components.locomotor.runspeed = TUNING.BUNNYMAN_RUN_SPEED
-    inst.components.locomotor.walkspeed = TUNING.BUNNYMAN_WALK_SPEED
+    inst.components.locomotor.runspeed = TUNING.BUNNYMAN_RUN_SPEED * 2
+    inst.components.locomotor.walkspeed = TUNING.BUNNYMAN_WALK_SPEED * 2
 
     inst.components.health:SetMaxHealth(TUNING.BUNNYMAN_HEALTH)
 

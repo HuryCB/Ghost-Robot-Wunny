@@ -12,7 +12,7 @@ local prefabs =
     "slingshotammo_rock_proj",
 }
 
-local PROJECTILE_DELAY = 1 * FRAMES
+local PROJECTILE_DELAY = 0.5 * FRAMES
 
 local function OnEquip(inst, owner)
     local skin_build = inst:GetSkinBuild()

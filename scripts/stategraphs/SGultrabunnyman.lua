@@ -144,7 +144,7 @@ local states =
 
         timeline =
         {
-            TimeEvent(13 * FRAMES, function(inst)
+            TimeEvent(5 * FRAMES, function(inst)
                 inst:PerformBufferedAction()
             end),
         },
@@ -170,7 +170,7 @@ local states =
 
         timeline =
         {
-            TimeEvent(13 * FRAMES, function(inst)
+            TimeEvent(5 * FRAMES, function(inst)
                 inst:PerformBufferedAction()
             end),
         },

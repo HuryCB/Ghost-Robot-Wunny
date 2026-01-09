@@ -344,7 +344,7 @@ end)
 --------------------------------------------------------------------------
 
 -- The character select screen lines
-STRINGS.CHARACTER_TITLES.wunny = "The Bunnylord"
+STRINGS.CHARACTER_TITLES.wunny = "The Bunnylord, 2026"
 STRINGS.CHARACTER_NAMES.wunny = "Wunny MODED"
 STRINGS.CHARACTER_DESCRIPTIONS.wunny =
 "*Transforms into a beardlord\n*Befriends bunnyman\n*Is a Vegetarian\n*Has some perks of others survivors... you will have to find out"
@@ -980,7 +980,18 @@ AddRecipe2("wunnypicklucycane", {
 -- { "REWARD", } -- filters )
 )
 
-AddRecipe2("wunnylivinglog", { Ingredient("log", 1), Ingredient("nightmarefuel", 1) },
+-- AddRecipe2("wunnylivinglog", { Ingredient(CHARACTER_INGREDIENT.HEALTH, 20) },
+--     TECH.MAGIC_ONE, {
+--         product = "rabbit",
+--         builder_tag = "wunny",
+--         nounlock = false,
+--         image = "rabbit.tex"
+--     },
+--     { "CHARACTER" }
+-- -- { "REWARD", } -- filters )
+-- )
+
+AddRecipe2("wunnyrabbit", { Ingredient("log", 1), Ingredient("nightmarefuel", 1) },
     TECH.MAGIC_ONE, {
         product = "livinglog",
         builder_tag = "wunny",

@@ -429,7 +429,9 @@ local function OnKill(inst, data)
                 --     inst._playerlink.components.sanity:DoDelta(victim.sanityreward / SANITY_REWARD)
                 -- end
             elseif inst.components.follower ~= nil then
-                inst.components.follower:GetLeader().components.sanity:DoDelta(victim.sanityreward)
+                if  inst.components.follower:GetLeader() ~= nil then
+                    inst.components.follower:GetLeader().components.sanity:DoDelta(victim.sanityreward)
+                end
             end
         end
     end

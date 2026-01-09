@@ -7,6 +7,7 @@ local assets = {
 	Asset("SCRIPT", "scripts/prefabs/player_common.lua"),
 	Asset("ANIM", "anim/rabbit_hole.zip"),
 	Asset("ANIM", "anim/bunnybeard.zip"),
+	Asset("SCRIPT", "scripts/prefabs/skilltree_willow.lua"),
 }
 
 local prefabsItens = {
@@ -885,7 +886,7 @@ local function onload(inst, data)
 
 	if data ~= nil then
 		if data.abigail ~= nil then -- retrofitting
-			inst.components.inventory:GiveItem(SpawnPrefab("abigail_flower"))
+			-- inst.components.inventory:GiveItem(SpawnPrefab("abigail_flower"))
 		end
 
 		if data.questghost ~= nil and inst.questghost == nil then
@@ -962,8 +963,8 @@ local common_postinit = function(inst)
 	inst:AddTag("professionalchef")
 
 	--WoodLegs
-	inst:AddTag("woodlegs")
-	inst:AddTag("piratecaptain")
+	-- inst:AddTag("woodlegs")
+	-- inst:AddTag("piratecaptain")
 
 	--Walter
 	inst:AddTag("pebblemaker")
@@ -1059,7 +1060,7 @@ local function OnSave(inst, data)
 	print("tentando salvar king")
 	-- if inst.king ~= nil then
 	print("salvando king")
-	data.king = inst.king ~= nil and inst.woby:GetSaveRecord() or nil
+	data.king = inst.king ~= nil and inst.king:GetSaveRecord() or nil
 	-- end
 	print("supostamente salvou king")
 	data.woby = inst.woby ~= nil and inst.woby:GetSaveRecord() or nil
@@ -1179,7 +1180,7 @@ local function OnSanityDelta(inst, data)
 		inst.components.sanity:SetPercent(0)
 		-- inst.components.combat.damagemultiplier = 0.81
 		-- inst.components.combat.damagemultiplier = 0.81
-		inst.components.combat.externaldamagemultipliers:SetModifier("normalDamage", 0.81)
+		inst.components.combat.externaldamagemultipliers:SetModifier("wunnyDamageMultiplier", 1.2)
 		inst.components.health:SetAbsorptionAmount(-0.3)
 
 		inst.components.beard.prize = "beardhair"
@@ -1226,7 +1227,7 @@ local function OnSanityDelta(inst, data)
 		-- 	inst.components.combat.damagemultiplier = 0.4
 		-- else
 		-- inst.components.combat.damagemultiplier = 0.28
-		inst.components.combat.externaldamagemultipliers:SetModifier("normalDamage", 0.28)
+		inst.components.combat.externaldamagemultipliers:SetModifier("wunnyDamageMultiplier", 1)
 		-- end
 		inst.components.beard.prize = "manrabbit_tail"
 		-- inst:RemoveTag("playermonster")
@@ -1307,16 +1308,16 @@ end
 local caveDay = function(inst)
 	-- inst.components.locomotor.runspeed = 7.8
 	-- inst.components.locomotor.walkspeed = 7.8
-	inst.runningSpeed = 1.3
-	inst.components.locomotor:SetExternalSpeedMultiplier(inst, "wunnySpeed", 1.3)
+	inst.runningSpeed = 1.4
+	inst.components.locomotor:SetExternalSpeedMultiplier(inst, "wunnySpeed", 1.4)
 	-- print("print caveday")
 end
 
 local caveDusk = function(inst)
 	-- inst.components.locomotor.runspeed = 7.5
 	-- inst.components.locomotor.walkspeed = 7.5
-	inst.runningSpeed = 1.25
-	inst.components.locomotor:SetExternalSpeedMultiplier(inst, "wunnySpeed", 1.25)
+	inst.runningSpeed = 1.35
+	inst.components.locomotor:SetExternalSpeedMultiplier(inst, "wunnySpeed", 1.35)
 	-- print("print cavedusk")
 end
 
@@ -1325,8 +1326,8 @@ local caveNight = function(inst)
 	then
 		-- inst.components.locomotor.runspeed = 7.2
 		-- inst.components.locomotor.walkspeed = 7.2
-		inst.runningSpeed = 1.2
-		inst.components.locomotor:SetExternalSpeedMultiplier(inst, "wunnySpeed", 1.2)
+		inst.runningSpeed = 1.3
+		inst.components.locomotor:SetExternalSpeedMultiplier(inst, "wunnySpeed", 1.3)
 		-- print("print cavenight")
 	end
 end
@@ -1334,10 +1335,10 @@ end
 local caveBehaviour = function(inst)
 	-- inst.components.sanity.night_drain_mult = 0
 	inst.components.sanity.dapperness = TUNING.DAPPERNESS_MED_LARGE
-	if not inst.isbearlord then
-		-- inst.components.combat.damagemultiplier = 0.28
-		inst.components.combat.externaldamagemultipliers:SetModifier("normalDamage", 0.28)
-	end
+	-- if not inst.isbearlord then
+	-- 	-- inst.components.combat.damagemultiplier = 0.28
+	-- 	inst.components.combat.externaldamagemultipliers:SetModifier("wunnyDamageMultiplier", 1)
+	-- end
 	-- inst.components.sanity.custom_rate_fn = caveSanityfn
 	if TheWorld.state.iscaveday
 	then
@@ -1357,30 +1358,30 @@ end
 local surfaceDay = function(inst)
 	-- inst.components.locomotor.runspeed = 7.8
 	-- inst.components.locomotor.walkspeed = 7.8
-	inst.runningSpeed = 1.3
-	inst.components.locomotor:SetExternalSpeedMultiplier(inst, "wunnySpeed", 1.3)
+	inst.runningSpeed = 1.4
+	inst.components.locomotor:SetExternalSpeedMultiplier(inst, "wunnySpeed", 1.4)
 end
 
 local surfaceDusk = function(inst)
 	-- inst.components.locomotor.runspeed = 7.5
 	-- inst.components.locomotor.walkspeed = 7.5
-	inst.runningSpeed = 1.25
-	inst.components.locomotor:SetExternalSpeedMultiplier(inst, "wunnySpeed", 1.25)
+	inst.runningSpeed = 1.35
+	inst.components.locomotor:SetExternalSpeedMultiplier(inst, "wunnySpeed", 1.35)
 end
 
 local surfaceNight = function(inst)
 	-- inst.components.locomotor.runspeed = 7.2
 	-- inst.components.locomotor.walkspeed = 7.2
-	inst.runningSpeed = 1.2
-	inst.components.locomotor:SetExternalSpeedMultiplier(inst, "wunnySpeed", 1.2)
+	inst.runningSpeed = 1.3
+	inst.components.locomotor:SetExternalSpeedMultiplier(inst, "wunnySpeed", 1.3)
 end
 
 local surfaceBehaviour = function(inst)
 	inst.components.sanity.dapperness = 0
-	if not inst.isbearlord then
-		-- inst.components.combat.damagemultiplier = 0.28
-		inst.components.combat.externaldamagemultipliers:SetModifier("normalDamage", 0.28)
-	end
+	-- if not inst.isbearlord then
+	-- 	-- inst.components.combat.damagemultiplier = 0.28
+	-- 	inst.components.combat.externaldamagemultipliers:SetModifier("wunnyDamageMultiplier", 0.28)
+	-- end
 
 	-- inst.components.sanity.custom_rate_fn = surfaceSanityfn
 
@@ -1717,7 +1718,7 @@ local function currentspeedup(self, speedupamount) self.inst.currentspeedup:set(
 
 local function OnEquip(inst, data)
 	if data.item and data.item.prefab == "greenamulet" then
-		inst.components.builder.ingredientmod = .05
+		inst.components.builder.ingredientmod = .25
 	end
 	print(data)
 	local hasWeapon = inst.components.inventory:GetEquippedItem(EQUIPSLOTS.HANDS)
@@ -1763,7 +1764,7 @@ local function OnUnequip(inst, data)
 	--     inst.AnimState:ClearOverrideSymbol("beard")
 	-- end
 	if data.item and data.item.prefab == "greenamulet" then
-		inst.components.builder.ingredientmod = .1
+		inst.components.builder.ingredientmod = .5
 	end
 end
 
@@ -1884,7 +1885,7 @@ local master_postinit = function(inst)
 	-- inst.components.builder.science_bonus = 2
 	-- inst.components.builder.ancient_bonus = 4
 
-	inst.components.builder.ingredientmod = .1
+	inst.components.builder.ingredientmod = .25
 	--beard
 	inst:AddComponent("beard")
 	inst.components.beard.insulation_factor = TUNING.WEBBER_BEARD_INSULATION_FACTOR
@@ -1997,6 +1998,10 @@ local master_postinit = function(inst)
 	end
 
 	inst:DoPeriodicTask(.2, function()
+		if  inst.components.inventory == nil
+		then
+			return
+		end
 		local pos = Vector3(inst.Transform:GetWorldPosition())
 		local ents = TheSim:FindEntities(pos.x, pos.y, pos.z, 6)
 		-- local isNearbyRabbit = false

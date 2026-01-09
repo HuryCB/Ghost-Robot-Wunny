@@ -211,14 +211,14 @@ local function ClearObservedBeardlord(inst)
         -- else
         -- SetBunnyDamage(inst, 1.1)
         -- end
-        inst.components.combat:SetAttackPeriod(TUNING.BUNNYMAN_ATTACK_PERIOD * 90 / 100)
+        inst.components.combat:SetAttackPeriod(TUNING.BUNNYMAN_ATTACK_PERIOD * 50 / 100)
     end
 end
 
 local function SetObserverdBeardLord(inst)
     inst.beardlord = true
     SetBunnyDamage(inst, 1.1)
-    inst.components.combat:SetAttackPeriod(0.9)
+    inst.components.combat:SetAttackPeriod(0.5)
     if inst.clearbeardlordtask ~= nil then
         inst.clearbeardlordtask:Cancel()
     end
@@ -239,7 +239,7 @@ local function OnTimerDone(inst, data)
         if inst.clearbeardlordtask == nil then
             inst.beardlord = nil
             -- SetBunnyDamage(inst, 1.1)
-            inst.components.combat:SetAttackPeriod(TUNING.BUNNYMAN_ATTACK_PERIOD * 90 / 100)
+            inst.components.combat:SetAttackPeriod(TUNING.BUNNYMAN_ATTACK_PERIOD * 50 / 100)
         end
     end
 end
@@ -261,7 +261,7 @@ local function SetForcedBeardLord(inst, duration)
     end
     inst.beardlord = true
     -- SetBunnyDamage(inst, 1.1)
-    inst.components.combat:SetAttackPeriod(0.9)
+    inst.components.combat:SetAttackPeriod(0.5)
     inst.AnimState:SetBuild("manrabbit_beard_build")
     inst:ListenForEvent("timerdone", OnTimerDone)
 end
@@ -585,7 +585,7 @@ local function fn()
     inst.DynamicShadow:SetSize(1.5, .75)
     inst.Transform:SetFourFaced()
     -- inst.Transform:SetScale(1.25, 1.25, 1.25)
-    inst.Transform:SetScale(1.3, 1.3, 1.3)
+    inst.Transform:SetScale(1.4, 1.4, 1.4)
     -- inst.Transform:SetScale(1.56, 1.56, 1.56)
     -- inst.Transform:SetScale(2.5, 2.5, 2.5)
     -- inst.Transform:SetScale(2, 2, 2)
@@ -725,13 +725,13 @@ local function fn()
     -- inst.components.sleeper.waketestfn = DefaultWakeTest
 
     SetBunnyDamage(inst, 1.1)
-    inst.components.combat:SetAttackPeriod(TUNING.BUNNYMAN_ATTACK_PERIOD * 90 / 100)
+    inst.components.combat:SetAttackPeriod(TUNING.BUNNYMAN_ATTACK_PERIOD * 50 / 100)
     inst.components.combat:SetKeepTargetFunction(NormalKeepTargetFn)
     inst.components.combat:SetRetargetFunction(3, NormalRetargetFn)
-    inst.components.combat:SetRange(3+1)
+    inst.components.combat:SetRange(3+2)
 
-    inst.components.locomotor.runspeed = TUNING.BUNNYMAN_RUN_SPEED * 130 / 100
-    inst.components.locomotor.walkspeed = TUNING.BUNNYMAN_WALK_SPEED * 130 / 100
+    inst.components.locomotor.runspeed = TUNING.BUNNYMAN_RUN_SPEED * 140 / 100
+    inst.components.locomotor.walkspeed = TUNING.BUNNYMAN_WALK_SPEED * 140 / 100
 
     inst.components.health:SetMaxHealth(TUNING.BUNNYMAN_HEALTH * 120 / 100)
 

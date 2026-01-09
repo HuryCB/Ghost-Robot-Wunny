@@ -470,9 +470,9 @@ local function fn()
     inst.components.health:SetMaxHealth(TUNING.WINONA_CATAPULT_HEALTH)
 
     inst:AddComponent("combat")
-    inst.components.combat:SetDefaultDamage(TUNING.WINONA_CATAPULT_DAMAGE)
-    inst.components.combat:SetRange(TUNING.WINONA_CATAPULT_MAX_RANGE)
-    inst.components.combat:SetAttackPeriod(TUNING.WINONA_CATAPULT_ATTACK_PERIOD)
+    inst.components.combat:SetDefaultDamage(TUNING.WINONA_CATAPULT_DAMAGE * 1.2)
+    inst.components.combat:SetRange(TUNING.WINONA_CATAPULT_MAX_RANGE * 1.2)
+    inst.components.combat:SetAttackPeriod(TUNING.WINONA_CATAPULT_ATTACK_PERIOD * 0.8)
     inst.components.combat:SetRetargetFunction(1, RetargetFn)
     inst.components.combat:SetKeepTargetFunction(ShouldKeepTarget)
 
@@ -485,7 +485,7 @@ local function fn()
     inst:AddComponent("savedrotation")
 
     inst:AddComponent("circuitnode")
-    inst.components.circuitnode:SetRange(TUNING.WINONA_BATTERY_RANGE)
+    inst.components.circuitnode:SetRange(TUNING.WINONA_BATTERY_RANGE * 1.5)
     inst.components.circuitnode:SetOnConnectFn(OnConnectCircuit)
     inst.components.circuitnode:SetOnDisconnectFn(OnDisconnectCircuit)
     inst.components.circuitnode.connectsacrossplatforms = false
