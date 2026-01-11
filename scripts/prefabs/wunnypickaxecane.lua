@@ -73,7 +73,7 @@ local function fn()
 
     inst.components.equippable:SetOnEquip(onequip)
     inst.components.equippable:SetOnUnequip(onunequip)
-    inst.components.equippable.walkspeedmult = TUNING.CANE_SPEED_MULT * 1.5
+    inst.components.equippable.walkspeedmult = TUNING.CANE_SPEED_MULT + 0.25
 
     MakeHauntableLaunch(inst)
 
