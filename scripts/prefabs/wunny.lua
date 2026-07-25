@@ -1385,7 +1385,7 @@ local surfaceBehaviour = function(inst)
 end
 
 local function CarrotPreserverRate(inst, item)
-	return (item ~= nil and item == "carrot" or item == "coocked_carrot") and TUNING.WURT_FISH_PRESERVER_RATE or nil
+	return (item ~= nil and item == "carrot" or item == "carrot_cooked") and TUNING.WURT_FISH_PRESERVER_RATE or nil
 end
 
 local function OnResetBeard(inst)
@@ -1447,11 +1447,12 @@ local function OnGrowLongBeard(inst, skinname)
 	inst.components.beard.bits = BEARD_BITS[3]
 end
 
+local SANITYFN_FIRE_TAGS = { "fire" }
 local function sanityfn(inst) --, dt)
 	local delta = inst.components.temperature:IsFreezing() and -TUNING.SANITYAURA_LARGE or 0
 	local x, y, z = inst.Transform:GetWorldPosition()
 	local max_rad = 10
-	-- local ents = TheSim:FindEntities(x, y, z, max_rad, FIRE_TAGS)
+	local ents = TheSim:FindEntities(x, y, z, max_rad, SANITYFN_FIRE_TAGS)
 	for i, v in ipairs(ents) do
 		if v.components.burnable ~= nil and v.components.burnable:IsBurning() then
 			local rad = v.components.burnable:GetLargestLightRadius() or 1
@@ -1755,18 +1756,20 @@ local function OnUnequip(inst, data)
 end
 
 local function OnHealthDelta(inst, data)
+	local overtime = data ~= nil and data.overtime or nil
 	if data.amount < 0 then
 		if not inst.isbeardlord then
 			inst.components.sanity:DoDelta(
 				data.amount
-					* ((data ~= nil and data.overtime) and TUNING.WALTER_SANITY_DAMAGE_OVERTIME_RATE or TUNING.WALTER_SANITY_DAMAGE_RATE)
+					* (overtime and TUNING.WALTER_SANITY_DAMAGE_OVERTIME_RATE or TUNING.WALTER_SANITY_DAMAGE_RATE)
 					* inst._sanity_damage_protection:Get()
-					/ 2
+					/ 2,
+				overtime
 			)
 		end
 	elseif data.amount > 0 then
 		if not inst.isbeardlord then
-			inst.components.sanity:DoDelta(data.amount / 2)
+			inst.components.sanity:DoDelta(data.amount / 2, overtime)
 		end
 	end
 end
@@ -2043,11 +2046,7 @@ local master_postinit = function(inst)
 							v:AddTag("crazy")
 						end
 					else
-						if v.prefab == "shadowbunnyman" then
-							break
-						end
-
-						if v:HasTag("crazy") then
+						if v.prefab ~= "shadowbunnyman" and v:HasTag("crazy") then
 							print("tirando tag crazy")
 							v:RemoveTag("crazy")
 						end

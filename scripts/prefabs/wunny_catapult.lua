@@ -293,13 +293,13 @@ end
 local function OnEnableHelper(inst, enabled, recipename, placerinst)
     if enabled then
         if inst.helper == nil and inst:HasTag("HAMMER_workable") and not inst:HasTag("burnt") then
-            if recipename == "winona_catapult" then
+            if recipename == "wunny_catapult" then
                 inst.helper = CreatePlacerRing()
                 inst.helper.entity:SetParent(inst.entity)
             else
                 inst.helper = CreatePlacerBatteryRing()
                 inst.helper.entity:SetParent(inst.entity)
-                if placerinst ~= nil and (recipename == "winona_battery_low" or recipename == "winona_battery_high") then
+                if placerinst ~= nil and (recipename == "wunny_battery_low" or recipename == "wunny_battery_high") then
                     inst.helper:AddComponent("updatelooper")
                     inst.helper.components.updatelooper:AddOnUpdateFn(OnUpdatePlacerHelper)
                     inst.helper.placerinst = placerinst
@@ -445,10 +445,10 @@ local function fn()
     --Dedicated server does not need deployhelper
     if not TheNet:IsDedicated() then
         inst:AddComponent("deployhelper")
-        inst.components.deployhelper:AddRecipeFilter("winona_spotlight")
-        inst.components.deployhelper:AddRecipeFilter("winona_catapult")
-        inst.components.deployhelper:AddRecipeFilter("winona_battery_low")
-        inst.components.deployhelper:AddRecipeFilter("winona_battery_high")
+        inst.components.deployhelper:AddRecipeFilter("wunny_spotlight")
+        inst.components.deployhelper:AddRecipeFilter("wunny_catapult")
+        inst.components.deployhelper:AddRecipeFilter("wunny_battery_low")
+        inst.components.deployhelper:AddRecipeFilter("wunny_battery_high")
         inst.components.deployhelper.onenablehelper = OnEnableHelper
     end
 

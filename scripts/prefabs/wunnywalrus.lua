@@ -205,7 +205,7 @@ local function create_common(build, scale, tag)
     inst:AddTag("character")
     inst:AddTag("pig")
     inst:AddTag("notraptrigger")
-    -- inst:AddTag("walrus")
+    inst:AddTag("walrus")
     -- inst:AddTag("houndfriend")
     if tag ~= nil then
         inst:AddTag(tag)

@@ -48,6 +48,7 @@ local function fn()
     --tool (from tool component) added to pristine state for optimization
     inst:AddTag("tool")
     inst:AddComponent("tool")
+    -- ignorar: multiplicador * 20 é intencional
     inst.components.tool:SetAction(ACTIONS.CHOP, TUNING.MULTITOOL_AXE_PICKAXE_EFFICIENCY * 20)
     inst.components.tool:SetAction(ACTIONS.MINE, TUNING.MULTITOOL_AXE_PICKAXE_EFFICIENCY * 20)
 
