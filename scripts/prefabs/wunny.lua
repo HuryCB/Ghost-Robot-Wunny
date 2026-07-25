@@ -1,7 +1,9 @@
 local MakePlayerCharacter = require("prefabs/player_common")
+local WX78Common = require("prefabs/wx78_common")
 local WX78MoistureMeter = require("widgets/wx78moisturemeter")
 local WendyFlowerOver = require("widgets/wendyflowerover")
 local easing = require("easing")
+local WunnySkillTree = require("wunnyskilltree")
 
 local assets = {
 	Asset("SCRIPT", "scripts/prefabs/player_common.lua"),
@@ -386,88 +388,13 @@ local function SpawnWoby(inst)
 end
 
 ----------------------------------------------------------------------------------------
-
-----------------------------------------------------------------------------------------
-
-local function CLIENT_GetEnergyLevel(inst)
-	if inst.components.upgrademoduleowner ~= nil then
-		return inst.components.upgrademoduleowner.charge_level
-	elseif inst.player_classified ~= nil then
-		return inst.player_classified.currentenergylevel:value()
-	else
-		return 0
-	end
-end
-
-local function get_plugged_module_indexes(inst)
-	local upgrademodule_defindexes = {}
-	for _, module in ipairs(inst.components.upgrademoduleowner.modules) do
-		table.insert(upgrademodule_defindexes, module._netid)
-	end
-
-	-- Fill out the rest of the table with 0s
-	while #upgrademodule_defindexes < TUNING.WX78_MAXELECTRICCHARGE do
-		table.insert(upgrademodule_defindexes, 0)
-	end
-
-	return upgrademodule_defindexes
-end
-
-local DEFAULT_ZEROS_MODULEDATA = { 0, 0, 0, 0, 0, 0 }
-local function CLIENT_GetModulesData(inst)
-	local data = nil
-
-	if inst.components.upgrademoduleowner ~= nil then
-		data = get_plugged_module_indexes(inst)
-	elseif inst.player_classified ~= nil then
-		data = {}
-		for _, module_netvar in ipairs(inst.player_classified.upgrademodules) do
-			table.insert(data, module_netvar:value())
-		end
-	else
-		data = DEFAULT_ZEROS_MODULEDATA
-	end
-
-	return data
-end
-
-local function CLIENT_CanUpgradeWithModule(inst, module_prefab)
-	if module_prefab == nil then
-		return false
-	end
-
-	local slots_inuse = (module_prefab._slots or 0)
-
-	if inst.components.upgrademoduleowner ~= nil then
-		for _, module in ipairs(inst.components.upgrademoduleowner.modules) do
-			local modslots = (module.components.upgrademodule ~= nil and module.components.upgrademodule.slots) or 0
-			slots_inuse = slots_inuse + modslots
-		end
-	elseif inst.player_classified ~= nil then
-		for _, module_netvar in ipairs(inst.player_classified.upgrademodules) do
-			local module_definition = GetWX78ModuleByNetID(module_netvar:value())
-			if module_definition ~= nil then
-				slots_inuse = slots_inuse + module_definition.slots
-			end
-		end
-	else
-		return false
-	end
-
-	return (TUNING.WX78_MAXELECTRICCHARGE - slots_inuse) >= 0
-end
-
-local function CLIENT_CanRemoveModules(inst)
-	if inst.components.upgrademoduleowner ~= nil then
-		return inst.components.upgrademoduleowner:NumModules() > 0
-	elseif inst.player_classified ~= nil then
-		-- Assume that, if the first module slot netvar is 0, we have no modules.
-		return inst.player_classified.upgrademodules[1]:value() ~= 0
-	else
-		return false
-	end
-end
-
+-- Nota: GetMaxEnergy/GetEnergyLevel/GetModulesData/CanUpgradeWithModule já são
+-- fornecidas por WX78Common.SetupUpgradeModuleOwnerInstanceFunctions (ver
+-- common_postinit). Havia aqui uma reimplementação própria (CLIENT_*) que
+-- duplicava essa lógica e tinha um bug (usava upgrademoduleowner.modules, que
+-- não existe — o campo certo é module_bars), causando um crash no HUD
+-- (upgrademodulesdisplay.lua). Removida em vez de corrigida para não manter
+-- duas fontes de verdade divergentes.
 ----------------------------------------------------------------------------------------
 local function OnForcedNightVisionDirty(inst)
 	if inst.components.playervision ~= nil then
@@ -993,6 +920,14 @@ local common_postinit = function(inst)
 	inst:AddTag("batteryuser")
 	inst:AddTag("HASHEATER")
 	inst:AddTag("upgrademoduleowner")
+	-- precisa rodar em common_postinit (server + client) pois é o que
+	-- popula inst.GetMaxEnergy/GetEnergyLevel/GetModulesData usados pelo
+	-- widget de status secundário (upgrademodulesdisplay.lua) no cliente
+	WX78Common.SetupUpgradeModuleOwnerInstanceFunctions(inst)
+	-- o mesmo widget também acessa inst.components.wx78_abilitycooldowns
+	-- direto (sem checagem de nil), então precisa existir mesmo sem Wunny
+	-- ter nenhuma habilidade com cooldown própria ainda
+	inst:AddComponent("wx78_abilitycooldowns")
 
 	--double loot
 	inst:ListenForEvent("killed", function(inst, data)
@@ -1036,16 +971,6 @@ local common_postinit = function(inst)
 	inst.components.talker.mod_str_fn = string.utf8upper
 
 	inst.foleysound = "dontstarve/movement/foley/wx78"
-
-	----------------------------------------------------------------
-	-- For UI save/loading
-	inst.GetEnergyLevel = CLIENT_GetEnergyLevel
-	inst.GetModulesData = CLIENT_GetModulesData
-
-	----------------------------------------------------------------
-	-- For actionfail tests
-	inst.CanUpgradeWithModule = CLIENT_CanUpgradeWithModule
-	inst.CanRemoveModules = CLIENT_CanRemoveModules
 end
 
 local function OnSave(inst, data)
@@ -2288,6 +2213,8 @@ local master_postinit = function(inst)
 		TheWorld:RemoveTag("hasbunnyking")
 		TheWorld:PushEvent("downgradeBunnys")
 	end, TheWorld)
+
+	WunnySkillTree.ApplyAllSkillTreeEffects(inst)
 end
 
 return MakePlayerCharacter("wunny", prefabs, assets, common_postinit, master_postinit, prefabs, prefabsItens)
