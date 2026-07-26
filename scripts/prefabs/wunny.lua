@@ -1034,6 +1034,11 @@ local function Wortox_GetPointSpecialActions(inst, pos, useitem, right)
 					table.insert(actions, ACTIONS.MAPSCOUTSELECT_MAP)
 				end
 			end
+
+			-- Rede de tocas (fast-travel): habilidade original da Wunny, sem
+			-- gate de skill tree. A validade real (existe uma toca perto do
+			-- clique?) é resolvida em ACTIONS.WUNNY_BURROWTRAVEL_MAP.maponly_checkvalidpos_fn.
+			table.insert(actions, ACTIONS.WUNNY_BURROWTRAVEL_MAP)
 		else
 			local canblink = inst:CanBlinkTo(pos)
 			if canblink and inst.CanSoulhop and inst:CanSoulhop() then

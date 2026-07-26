@@ -51,6 +51,7 @@ PrefabFiles = {
 
     "wunnyslingshot",
     "wunnyicebox",
+    "wunny_burrow",
     -- "beardlordback"
 }
 
@@ -94,6 +95,12 @@ Assets = {
 
     Asset("IMAGE", "images/rabbit_hole.tex"),
     Asset("ATLAS", "images/rabbit_hole.xml"),
+
+    -- gera o ícone de minimapa "rabbit_hole.png" a partir do próprio build
+    -- vanilla (mesmo símbolo "icon" usado no menu de construção), pro
+    -- rabbithole vanilla também aparecer no mapa (ver AddPrefabPostInit
+    -- "rabbithole" e wunny_burrow.lua)
+    Asset("MINIMAP_IMAGE", "rabbit_hole"),
 
     Asset("ATLAS", "images/inventoryimages/birchnuthat.xml"),
 
@@ -358,6 +365,9 @@ TUNING.WUNNY_RUNNING_HUNGER_RATE = 1
 TUNING.BUNNYPACK_HUNGER = 1.15      --mudar para 1.1
 TUNING.BEARDLORDPACK_HUNGER = 1.175 --mudar para 1.1
 TUNING.WUNNY_QUICK_ACTION_HUNGER = -0.3
+TUNING.WUNNY_BURROW_HUNGER_PER_DIST = 0.03 -- fome perdida por unidade de distância cavada
+TUNING.WUNNY_BURROW_MIN_TRAVEL_DIST = 3    -- distância mínima pra valer a viagem (evita "viajar" pra toca ao lado)
+TUNING.WUNNY_BURROW_MAP_SELECT_RADIUS = 4  -- raio de tolerância do clique no mapa em torno do ícone da toca
 -- TUNING.WUNNY_KING_
 -- TUNING.SHADOWBUNNYMAN_ATTACK_PERIOD =
 -- WUNNY_RUNNING_HUNGER_RATETUNNIN.WUNNY_IDLE_HUNGER_RATE = 1
@@ -412,6 +422,102 @@ end
 
 rabbithole_recipe({ Ingredient("carrot", 2), Ingredient("rabbit", 2), Ingredient("shovel", 1) }, TECH.NONE)
 STRINGS.RECIPE_DESC.RABBITHOLE = "A new home for the rabbits."
+
+--------------------------------------------------------------------------
+--[[ wunny_burrow: rede de tocas para fast-travel ]]
+--------------------------------------------------------------------------
+AddRecipe("wunny_burrow", { Ingredient("carrot", 3), Ingredient("boards", 2), Ingredient("shovel", 1) },
+    RECIPETABS.SURVIVAL, TECH.NONE,
+    "rabbit_placer", spacing, nil, nil, "wunny", "images/inventoryimages/rabbithole.xml")
+STRINGS.NAMES.WUNNY_BURROW = "Bunny Burrow"
+STRINGS.RECIPE_DESC.WUNNY_BURROW = "Digs a hole home."
+
+-- Ação de mapa: clicar com botão direito num "wunny_burrow" já descoberto faz
+-- a Wunny cavar até lá instantaneamente. Mesmo padrão de plumbing usado pelas
+-- ações de mapa do WX-78 (SWAPBODIES_MAP / MAPSCOUTSELECT_MAP): a ação só
+-- fica disponível quando checkingmapactions está true (ver Wortox_GetPointSpecialActions
+-- em wunny.lua) e a validade real é resolvida em maponly_checkvalidpos_fn.
+local burrowtravel_map = GLOBAL.Action({
+    instant = true,
+    mount_valid = true,
+    rmb = true,
+    map_only = true,
+    map_works_on_unexplored = true,
+    closes_map = true,
+    -- ArriveAnywhere é local a actions.lua (não é global de verdade); como só
+    -- retorna true, inlinamos o mesmo comportamento aqui.
+    customarrivecheck = function() return true end,
+})
+burrowtravel_map.id = "WUNNY_BURROWTRAVEL_MAP"
+burrowtravel_map.str = "Cavar até aqui"
+AddAction(burrowtravel_map)
+
+GLOBAL.ACTIONS.WUNNY_BURROWTRAVEL_MAP.maponly_checkvalidpos_fn = function(act)
+    if act.doer == nil or not act.doer:HasTag("wunny") then
+        return false
+    end
+
+    local act_pos = act:GetActionPoint()
+    if act_pos == nil then
+        return false
+    end
+
+    local x, y, z = act_pos:Get()
+    local mapent = GLOBAL.FindClosestMapIconInRange("wunny_burrow_network", x, y, z, TUNING.WUNNY_BURROW_MAP_SELECT_RADIUS, nil)
+    if mapent == nil then
+        return false, "NOTARGET"
+    end
+
+    x, y, z = mapent.Transform:GetWorldPosition()
+    local px, py, pz = act.doer.Transform:GetWorldPosition()
+    if not GLOBAL.IsTeleportingPermittedFromPointToPoint(px, py, pz, x, y, z) then
+        return false
+    end
+
+    return true, nil, x, z, mapent
+end
+
+GLOBAL.ACTIONS.WUNNY_BURROWTRAVEL_MAP.fn = function(act)
+    local valid, reason, act_posx, act_posz, mapent = GLOBAL.ACTIONS.WUNNY_BURROWTRAVEL_MAP.maponly_checkvalidpos_fn(act)
+    if not valid then
+        return valid, reason
+    end
+
+    local doer = act.doer
+    if doer.components.hunger == nil then
+        return false
+    end
+
+    local px, py, pz = doer.Transform:GetWorldPosition()
+    local tx, ty, tz = mapent.Transform:GetWorldPosition()
+    local dist = math.sqrt((tx - px) * (tx - px) + (tz - pz) * (tz - pz))
+
+    if dist < TUNING.WUNNY_BURROW_MIN_TRAVEL_DIST then
+        return false, "NOTARGET"
+    end
+
+    local hungercost = dist * TUNING.WUNNY_BURROW_HUNGER_PER_DIST
+    if doer.components.hunger.current <= hungercost then
+        if doer.components.talker ~= nil then
+            doer.components.talker:Say("Estou com muita fome pra cavar até tão longe.")
+        end
+        return false
+    end
+
+    doer.components.hunger:DoDelta(-hungercost)
+
+    if doer.Physics ~= nil then
+        doer.Physics:Teleport(tx, ty, tz)
+    else
+        doer.Transform:SetPosition(tx, ty, tz)
+    end
+
+    if doer.SoundEmitter ~= nil then
+        doer.SoundEmitter:PlaySound("dontstarve/common/together/teleport_sand/out")
+    end
+
+    return true
+end
 
 local cinnabunnfarm_recipe = AddRecipe("cinnabunnfarm", { Ingredient("boards", 3), Ingredient("guano", 3)}, RECIPETABS.FARM, TECH.NONE, "cinnabunnfarm_placer", 2.5, nil, nil, "wunny", "images/inventoryimages/cinnabunnfarm.xml" )
 cinnabunnfarm_recipe.sortkey = -8112 -- Put at top
@@ -1231,6 +1337,29 @@ AddPrefabPostInit("rabbithole", function(inst)
     end
 
     inst.components.workable:SetOnFinishCallback(dig_up)
+
+    -- Rede de tocas (fast-travel): todo rabbithole do mundo (selvagem ou
+    -- construído) entra na mesma rede que wunny_burrow.lua usa, registrado
+    -- sob o mesmo nome lógico "wunny_burrow_network" (ver
+    -- FindClosestMapIconInRange em ACTIONS.WUNNY_BURROWTRAVEL_MAP). O ícone
+    -- no mapa usa o mesmo "globalmapiconseeable" que o wormhole vanilla usa,
+    -- já que MiniMapEntity não pode ser adicionado depois de SetPristine
+    -- (não temos MiniMapEntity próprio no rabbithole, só essa entidade de
+    -- rastreamento separada).
+    GLOBAL.RegisterGlobalMapIcon(inst, "wunny_burrow_network")
+
+    inst:DoTaskInTime(0, function(inst)
+        inst.hiddenglobalicon = GLOBAL.SpawnPrefab("globalmapiconseeable")
+        inst.hiddenglobalicon.MiniMapEntity:SetIcon("rabbit_hole.png")
+        inst.hiddenglobalicon.MiniMapEntity:SetPriority(5)
+        inst.hiddenglobalicon:TrackEntity(inst)
+    end)
+
+    inst.OnRemoveEntity = function(inst)
+        if inst.hiddenglobalicon ~= nil then
+            inst.hiddenglobalicon:Remove()
+        end
+    end
 end)
 
 -- AddPrefabPostInit("butterflywings", function(inst)
