@@ -52,6 +52,7 @@ PrefabFiles = {
     "wunnyslingshot",
     "wunnyicebox",
     "wunny_burrow",
+    "wunny_burrowdash_fx",
     -- "beardlordback"
 }
 
@@ -1427,7 +1428,10 @@ local wunnybunnyfollowerbrain = require("brains/wunnybunnyfollowerbrain")
 
 -- Tem que ser >= CARRY_FOLLOW_MAX da brain, senão o coelho "chega" na Wunny
 -- (Follow retorna SUCCESS) sem nunca entrar no alcance de entrega.
-local WUNNY_BUNNY_DELIVER_DIST = 3
+-- Folga generosa sobre o CARRY_FOLLOW_MAX (2) da brain: a colisão com a Wunny
+-- e com bichos em volta empurra o coelho um pouco, e se o alcance fosse justo
+-- ele podia ficar oscilando na borda sem a entrega nunca disparar.
+local WUNNY_BUNNY_DELIVER_DIST = 4
 local WUNNY_BUNNY_LEADER_SEARCH_DIST = 30
 local WUNNY_BUNNY_DEFAULT_STACK = 40
 

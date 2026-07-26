@@ -26,6 +26,8 @@ local GATHER_SEARCH_DIST = 20
 -- precisa desviar em vez de andar reto pro recurso ou pra Wunny.
 local THREAT_SEE_DIST = 7
 local THREAT_SAFE_DIST = 11
+-- Tempo mínimo que o estado "em perigo" se mantém depois da última detecção.
+local THREAT_LATCH_TIME = 3
 -- Recurso mais perto que isso de um bicho hostil é ignorado na coleta.
 local THREAT_NEAR_TARGET_DIST = 6
 -- Distância máxima da Wunny pra preferir se esconder atrás dela em vez de só
@@ -68,6 +70,11 @@ end
 -- jogador também é scarytoprey, e o coelho fugiria da própria Wunny. Filtra
 -- por hostilidade real, ignorando o leader, outros jogadores e os aliados da
 -- bunny army.
+--
+-- Deliberadamente NÃO conta como ameaça um bicho que está atacando a Wunny mas
+-- não o coelho (caso do merm, que não tem tag monster/hostile): o alvo dele
+-- muda toda hora, e isso fazia o nó de fuga piscar em sincronia com o
+-- movimento do bicho. Briga da Wunny é assunto do nó de combate.
 local function IsThreat(inst, ent)
 	if ent == inst
 		or ent == GetLeader(inst)
@@ -82,7 +89,6 @@ local function IsThreat(inst, ent)
 	return ent:HasTag("monster")
 		or ent:HasTag("hostile")
 		or ent.components.combat.target == inst
-		or ent.components.combat.target == GetLeader(inst)
 end
 
 -- ignore_leader_target: o bicho que a Wunny já está enfrentando não conta como
@@ -102,8 +108,16 @@ local function FindThreat(inst, dist, ignore_leader_target)
 	return nil
 end
 
+-- Histerese: sem isso, um bicho oscilando em volta do raio de detecção (ou
+-- trocando de alvo) liga e desliga o nó de perigo a cada tick de 0.25s, e o
+-- coelho fica preso alternando entre fugir e voltar, sem completar nenhum dos
+-- dois. Uma vez visto um perigo, o estado se mantém por THREAT_LATCH_TIME.
 local function IsDangerNear(inst)
-	return FindThreat(inst, THREAT_SEE_DIST, true) ~= nil
+	if FindThreat(inst, THREAT_SEE_DIST, true) ~= nil then
+		inst._wunny_danger_until = GetTime() + THREAT_LATCH_TIME
+		return true
+	end
+	return inst._wunny_danger_until ~= nil and inst._wunny_danger_until > GetTime()
 end
 
 -- Mesma checagem, mas em volta de um ponto/entidade qualquer (usada pra
@@ -235,9 +249,17 @@ end)
 function WunnyBunnyFollowerBrain:OnStart()
 	local root = PriorityNode(
 	{
-		-- Prioridade máxima: sair de perto de bicho hostil. Se a Wunny está
-		-- por perto ele se esconde atrás dela (que resolve a ameaça e, de
-		-- bônus, isso o coloca no alcance de entrega); senão foge na direção
+		-- Carregando algo: cola na Wunny até entrar no alcance de entrega.
+		-- Fica ACIMA do nó de perigo de propósito: ir pra Wunny já é a coisa
+		-- mais segura que o coelho pode fazer, e se os dois nós competissem com
+		-- um bicho parado do lado dela ("fugir do bicho" e "ir pra Wunny" viram
+		-- direções opostas) ele alternaria entre os dois sem nunca assentar
+		-- dentro do alcance de entrega.
+		WhileNode(function() return IsCarryingItem(self.inst) end, "Carrying",
+			Follow(self.inst, GetLeader, CARRY_FOLLOW_MIN, CARRY_FOLLOW_TARGET, CARRY_FOLLOW_MAX)),
+
+		-- Sair de perto de bicho hostil. Se a Wunny está por perto ele se
+		-- esconde atrás dela (que resolve a ameaça); senão foge na direção
 		-- oposta ao bicho.
 		WhileNode(function() return IsDangerNear(self.inst) end, "Danger",
 			PriorityNode(
@@ -251,10 +273,6 @@ function WunnyBunnyFollowerBrain:OnStart()
 					{ fn = function(ent) return IsThreat(self.inst, ent) end, tags = { "_combat" }, notags = { "INLIMBO", "wall", "structure" } },
 					THREAT_SEE_DIST, THREAT_SAFE_DIST, nil, nil, nil, nil, GetLeaderPos),
 			}, .25)),
-
-		-- Carregando algo: cola na Wunny até entrar no alcance de entrega.
-		WhileNode(function() return IsCarryingItem(self.inst) end, "Carrying",
-			Follow(self.inst, GetLeader, CARRY_FOLLOW_MIN, CARRY_FOLLOW_TARGET, CARRY_FOLLOW_MAX)),
 
 		DoAction(self.inst, GatherAction, "gather", true),
 

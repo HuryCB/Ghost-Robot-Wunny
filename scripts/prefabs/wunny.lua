@@ -2500,6 +2500,21 @@ local master_postinit = function(inst)
 	-- reespawnado periodicamente na posição da Wunny enquanto ela se move.
 	inst.is_burrowdashing = false
 
+	-- Tempo que a Wunny fica visível "entrando" no buraco antes de desaparecer,
+	-- e a pausa entre ela desaparecer e o buraco sumir dando lugar aos
+	-- montinhos de terra.
+	local WUNNY_BURROWDASH_ENTER_TIME = 0.5
+	local WUNNY_BURROWDASH_HOLE_FADE_TIME = 0.2
+
+	local function RemoveBurrowDashHoleFX(inst)
+		if inst.burrowdash_holefx ~= nil then
+			if inst.burrowdash_holefx:IsValid() then
+				inst.burrowdash_holefx:Remove()
+			end
+			inst.burrowdash_holefx = nil
+		end
+	end
+
 	local function StopBurrowDash(inst)
 		if not inst.is_burrowdashing then
 			return
@@ -2513,6 +2528,17 @@ local master_postinit = function(inst)
 			inst.burrowdash_task:Cancel()
 			inst.burrowdash_task = nil
 		end
+		-- As duas tarefas do encadeamento de entrada podem estar pendentes se a
+		-- toca for desligada (ou a Wunny for atacada) durante a animação.
+		if inst.burrowdash_enter_task ~= nil then
+			inst.burrowdash_enter_task:Cancel()
+			inst.burrowdash_enter_task = nil
+		end
+		if inst.burrowdash_hidehole_task ~= nil then
+			inst.burrowdash_hidehole_task:Cancel()
+			inst.burrowdash_hidehole_task = nil
+		end
+		RemoveBurrowDashHoleFX(inst)
 		inst.AnimState:SetMultColour(1, 1, 1, 1)
 		inst:PushEvent("locomote")
 	end
@@ -2533,12 +2559,28 @@ local master_postinit = function(inst)
 		if inst.components.combat ~= nil then
 			inst.components.combat.canattack = false
 		end
-		inst.AnimState:SetMultColour(1, 1, 1, 0)
 		inst:PushEvent("locomote")
 
-		inst.burrowdash_task = inst:DoPeriodicTask(0.3, function()
-			local x, y, z = inst.Transform:GetWorldPosition()
-			SpawnPrefab("mole_move_fx").Transform:SetPosition(x, y, z)
+		-- Encadeamento visual da entrada na toca: o buraco aparece sob a Wunny
+		-- (ela continua visível "cavando"), 0.5s depois ela desaparece dentro
+		-- dele, e só então o buraco some e os montinhos de terra começam.
+		inst.burrowdash_holefx = SpawnPrefab("wunny_burrowdash_fx")
+		inst.burrowdash_holefx.Transform:SetPosition(inst.Transform:GetWorldPosition())
+		inst.SoundEmitter:PlaySound("dontstarve_DLC001/creatures/mole/emerge")
+
+		inst.burrowdash_enter_task = inst:DoTaskInTime(WUNNY_BURROWDASH_ENTER_TIME, function(inst)
+			inst.burrowdash_enter_task = nil
+			inst.AnimState:SetMultColour(1, 1, 1, 0)
+
+			inst.burrowdash_hidehole_task = inst:DoTaskInTime(WUNNY_BURROWDASH_HOLE_FADE_TIME, function(inst)
+				inst.burrowdash_hidehole_task = nil
+				RemoveBurrowDashHoleFX(inst)
+
+				inst.burrowdash_task = inst:DoPeriodicTask(0.3, function()
+					local x, y, z = inst.Transform:GetWorldPosition()
+					SpawnPrefab("mole_move_fx").Transform:SetPosition(x, y, z)
+				end, 0)
+			end)
 		end)
 	end
 
