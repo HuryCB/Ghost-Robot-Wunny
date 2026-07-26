@@ -183,6 +183,14 @@ local CHARGEREGEN_TIMERNAME = "chargeregenupdate"
 local MOISTURETRACK_TIMERNAME = "moisturetrackingupdate"
 local HUNGERDRAIN_TIMERNAME = "hungerdraintick"
 local HEATSTEAM_TIMERNAME = "heatsteam_tick"
+
+-- wx78_circuitry_bettercharge é permanente na Wunny (todas as skills do
+-- WunnySkillTree são concedidas de uma vez, sem tela de skill tree), então a
+-- recarga já vem sempre no ritmo acelerado, em vez de checar
+-- skilltreeupdater:IsActivated a cada vez.
+local function Wunny_GetChargeRegenTime()
+	return TUNING.WX78_CHARGE_REGENTIME / TUNING.SKILLS.WX78.FASTER_CHARGE_MULTIPLIER
+end
 for mdindex, module_def in ipairs(WX78ModuleDefinitions) do
 	table.insert(prefabs, "wx78module_" .. module_def.name)
 end
@@ -477,7 +485,7 @@ local function OnUpgradeModuleChargeChanged(inst, data)
 	inst.components.timer:StopTimer(CHARGEREGEN_TIMERNAME)
 
 	if not inst.components.upgrademoduleowner:ChargeIsMaxed() then
-		inst.components.timer:StartTimer(CHARGEREGEN_TIMERNAME, TUNING.WX78_CHARGE_REGENTIME)
+		inst.components.timer:StartTimer(CHARGEREGEN_TIMERNAME, Wunny_GetChargeRegenTime())
 
 		-- If we just got put to 0 from a non-0 value, tell the player.
 		if data.old_level ~= 0 and data.new_level == 0 then
@@ -632,7 +640,7 @@ local function onbecamehuman(inst, data, isloading)
 	inst.Light:SetColour(235 / 255, 121 / 255, 12 / 255)
 
 	if not inst.components.upgrademoduleowner:ChargeIsMaxed() then
-		inst.components.timer:StartTimer(CHARGEREGEN_TIMERNAME, TUNING.WX78_CHARGE_REGENTIME)
+		inst.components.timer:StartTimer(CHARGEREGEN_TIMERNAME, Wunny_GetChargeRegenTime())
 	end
 	inst.components.ghostlybond:SetBondLevel(1)
 	inst.components.ghostlybond:ResumeBonding()
@@ -673,8 +681,13 @@ local function onbecameghost(inst)
 		end
 	end
 
-	inst.components.upgrademoduleowner:PopAllModules()
-	inst.components.upgrademoduleowner:SetChargeLevel(0)
+	-- wx78 (Chassis): se um corpo reserva está prestes a ser criado (setado por
+	-- player_common_extensions.lua:OnPlayerDeath ao ativar wx78_ghostrevive_2),
+	-- não descarta os módulos/carga aqui — TryToSpawnBackupBody cuida disso.
+	if not inst.wx78_backupbody_save then
+		inst.components.upgrademoduleowner:PopAllModules()
+		inst.components.upgrademoduleowner:SetChargeLevel(0)
+	end
 
 	stop_moisturetracking(inst)
 	inst.components.timer:StopTimer(HUNGERDRAIN_TIMERNAME)
@@ -1002,23 +1015,139 @@ local function Wortox_CanSoulhop(inst, souls)
 end
 
 local function Wortox_GetPointSpecialActions(inst, pos, useitem, right)
+	local actions = {}
 	if right and useitem == nil then
-		local canblink
 		if inst.checkingmapactions then
-			canblink = inst:CanBlinkFromWithMap(inst.checkingmapactions_pos or inst:GetPosition())
+			local canblink = inst:CanBlinkFromWithMap(inst.checkingmapactions_pos or inst:GetPosition())
+			if canblink and inst.CanSoulhop and inst:CanSoulhop() then
+				table.insert(actions, ACTIONS.BLINK)
+			end
+
+			-- wx78 (Chassis/Drones): ações de mapa "trocar de corpo remotamente"
+			-- e "escolher drone de escaneamento" — mesma checagem vanilla de
+			-- wx78.lua:GetPointSpecialActions.
+			if inst.components.skilltreeupdater then
+				if inst.components.skilltreeupdater:IsActivated("wx78_remotebodyswap") then
+					table.insert(actions, ACTIONS.SWAPBODIES_MAP)
+				end
+				if inst.components.skilltreeupdater:IsActivated("wx78_scoutdrone_1") then
+					table.insert(actions, ACTIONS.MAPSCOUTSELECT_MAP)
+				end
+			end
 		else
-			canblink = inst:CanBlinkTo(pos)
-		end
-		if canblink and inst.CanSoulhop and inst:CanSoulhop() then
-			return { ACTIONS.BLINK }
+			local canblink = inst:CanBlinkTo(pos)
+			if canblink and inst.CanSoulhop and inst:CanSoulhop() then
+				table.insert(actions, ACTIONS.BLINK)
+			end
+
+			if inst.components.playercontroller ~= nil and inst.components.playercontroller.isclientcontrollerattached then
+				if inst.CollectUpgradeModuleActions then
+					inst:CollectUpgradeModuleActions(actions)
+				end
+			end
 		end
 	end
-	return {}
+	return actions
 end
 
 local function Wortox_OnSetOwner(inst)
 	if inst.components.playeractionpicker ~= nil then
 		inst.components.playeractionpicker.pointspecialactionsfn = Wortox_GetPointSpecialActions
+	end
+end
+
+----------------------------------------------------------------------------------------
+-- wx78 (Chassis / Drones): entidade "classificada" (wx78_classified) que carrega os
+-- netvars de corpos reserva e drones de escaneamento. Sem ela, as receitas vanilla que
+-- checam "builder.wx78_classified:GetNumFreeBackupBodies()/GetNumFreeScoutingDrones()"
+-- (wx78_backupbody, wx78_drone_scout etc.) nunca liberam pra Wunny, mesmo com as skills
+-- de Chassis/Drones "ativadas" via IsActivated.
+----------------------------------------------------------------------------------------
+
+local function Wunny_AttachClassified_wx78(inst, classified)
+	inst.wx78_classified = classified
+	inst.ondetach_wx78_classified = function() inst:DetachClassified_wx78() end
+	inst:ListenForEvent("onremove", inst.ondetach_wx78_classified, classified)
+end
+
+local function Wunny_DetachClassified_wx78(inst)
+	inst.wx78_classified = nil
+	inst.ondetach_wx78_classified = nil
+end
+
+local function Wunny_OnSetOwner_wx78Classified(inst)
+	if TheWorld.ismastersim and inst.wx78_classified ~= nil then
+		inst.wx78_classified.Network:SetClassifiedTarget(inst)
+	end
+end
+
+local function Wunny_OnRemoveEntity_wx78Classified(inst)
+	if inst.wx78_classified ~= nil then
+		if TheWorld.ismastersim then
+			inst.wx78_classified:Remove()
+			inst.wx78_classified = nil
+		else
+			inst.wx78_classified._parent = nil
+			inst:RemoveEventCallback("onremove", inst.ondetach_wx78_classified, inst.wx78_classified)
+			inst:DetachClassified_wx78()
+		end
+	end
+end
+
+-- Corpo reserva (Chassis): mesma lógica de wx78.lua CanSpawnBackupBody/TryToSpawnBackupBody.
+-- Chamada pelo stategraph genérico do jogador (SGwilson.lua) quando
+-- inst.wx78_backupbody_save foi setado (feito automaticamente por
+-- player_common_extensions.lua:OnPlayerDeath ao checar IsActivated("wx78_ghostrevive_2")).
+local function Wunny_CanSpawnBackupBody(inst)
+	return (inst.wx78_classified and inst.wx78_classified:GetNumFreeBackupBodies() or 0) > 0
+end
+
+local function Wunny_TryToSpawnBackupBody(inst)
+	inst.wx78_backupbody_save = nil
+	if Wunny_CanSpawnBackupBody(inst) then
+		local x, y, z = inst.Transform:GetWorldPosition()
+		local body = SpawnPrefab("wx78_backupbody")
+		body._hide_body_skinfx = true
+		body.components.upgrademoduleowner:SetChargeLevel(0)
+		if inst.components.upgrademoduleowner then
+			inst.components.upgrademoduleowner:SetChargeLevel(0)
+		end
+		body.Transform:SetPosition(x, y, z)
+		if not body.components.activatable:CanActivate(inst) then
+			body:Remove()
+			return false
+		end
+		if not body.components.activatable:DoActivate(inst) then
+			body:Remove()
+			return false
+		end
+		inst.wx78_backupbody_save_inst = body
+		body._Light_value = body.Light:IsEnabled()
+		body:RemoveFromScene()
+		return true
+	end
+	inst.components.upgrademoduleowner:PopAllModules()
+	inst.components.upgrademoduleowner:SetChargeLevel(0)
+	return false
+end
+
+-- Drones (escaneamento): atualiza o contador de rede usado pela receita do
+-- wx78_drone_scout (getlimitedrecipecount -> GetNumFreeScoutingDrones).
+local function Wunny_OnDroneStartTracking(inst, drone)
+	if inst.wx78_classified then
+		inst.wx78_classified.numdronescouts:set(inst.wx78_classified.numdronescouts:value() + 1)
+		if inst.HUD then
+			inst:PushEvent("refreshcrafting")
+		end
+	end
+end
+
+local function Wunny_OnDroneStopTracking(inst, drone)
+	if inst.wx78_classified then
+		inst.wx78_classified.numdronescouts:set(inst.wx78_classified.numdronescouts:value() - 1)
+		if inst.HUD then
+			inst:PushEvent("refreshcrafting")
+		end
 	end
 end
 
@@ -1340,6 +1469,25 @@ local common_postinit = function(inst)
 	inst:AddTag("batteryuser")
 	inst:AddTag("HASHEATER")
 	inst:AddTag("upgrademoduleowner")
+
+	-- Netvars dos chips plugados (substitui player_classified.upgrademodules,
+	-- que nunca existiu de fato pro player_classified vanilla — ver 12slots.lua,
+	-- que tentava criar esses netvars mas ficou todo comentado e nem está no
+	-- PrefabFiles). Tamanho = WX78_MAXCHARGELEVEL_SKILL pra já cobrir o slot
+	-- extra da skill wx78_circuitry_slot_1.
+	inst._upgrademodules = {}
+	for i = 1, TUNING.WX78_MAXCHARGELEVEL_SKILL do
+		inst._upgrademodules[i] = net_smallbyte(inst.GUID, "wunny.upgrademodules"..i, "upgrademoduleslistdirty")
+	end
+
+	-- wx78 (Chassis/Drones): precisa existir tanto no client quanto no server pois
+	-- é isso que o wx78_classified chama (via OnEntityReplicated) do lado do
+	-- cliente quando a entidade classificada é replicada.
+	inst.AttachClassified_wx78 = Wunny_AttachClassified_wx78
+	inst.DetachClassified_wx78 = Wunny_DetachClassified_wx78
+	inst:ListenForEvent("setowner", Wunny_OnSetOwner_wx78Classified)
+	inst:ListenForEvent("onremove", Wunny_OnRemoveEntity_wx78Classified)
+
 	-- precisa rodar em common_postinit (server + client) pois é o que
 	-- popula inst.GetMaxEnergy/GetEnergyLevel/GetModulesData usados pelo
 	-- widget de status secundário (upgrademodulesdisplay.lua) no cliente
@@ -1863,9 +2011,9 @@ local function OnUpgradeModuleAdded(inst, moduleent)
 	local upgrademodule_defindexes = get_plugged_module_indexes(inst)
 
 	inst:PushEvent("upgrademodulesdirty", upgrademodule_defindexes)
-	if inst.player_classified ~= nil then
-		local newmodule_index = inst.components.upgrademoduleowner:NumModules()
-		inst.player_classified.upgrademodules[newmodule_index]:set(moduleent._netid or 0)
+	local newmodule_index = inst.components.upgrademoduleowner:NumModules()
+	if inst._upgrademodules[newmodule_index] ~= nil then
+		inst._upgrademodules[newmodule_index]:set(moduleent._netid or 0)
 	end
 end
 
@@ -1882,11 +2030,11 @@ end
 
 local function OnOneUpgradeModulePopped(inst, moduleent)
 	inst:PushEvent("upgrademodulesdirty", get_plugged_module_indexes(inst))
-	if inst.player_classified ~= nil then
-		-- This is a callback of the remove, so our current NumModules should be
-		-- 1 lower than the index of the module that was just removed.
-		local top_module_index = inst.components.upgrademoduleowner:NumModules() + 1
-		inst.player_classified.upgrademodules[top_module_index]:set(0)
+	-- This is a callback of the remove, so our current NumModules should be
+	-- 1 lower than the index of the module that was just removed.
+	local top_module_index = inst.components.upgrademoduleowner:NumModules() + 1
+	if inst._upgrademodules[top_module_index] ~= nil then
+		inst._upgrademodules[top_module_index]:set(0)
 	end
 end
 
@@ -1895,18 +2043,16 @@ local function OnAllUpgradeModulesRemoved(inst)
 
 	inst:PushEvent("upgrademoduleowner_popallmodules")
 
-	if inst.player_classified ~= nil then
-		inst.player_classified.upgrademodules[1]:set(0)
-		inst.player_classified.upgrademodules[2]:set(0)
-		inst.player_classified.upgrademodules[3]:set(0)
-		inst.player_classified.upgrademodules[4]:set(0)
-		inst.player_classified.upgrademodules[5]:set(0)
-		inst.player_classified.upgrademodules[6]:set(0)
+	for i = 1, #inst._upgrademodules do
+		inst._upgrademodules[i]:set(0)
 	end
 end
 
 local function CanUseUpgradeModule(inst, moduleent)
-	if (TUNING.WX78_MAXELECTRICCHARGE - inst._chip_inuse) < moduleent.components.upgrademodule.slots then
+	-- GetMaxChargeLevel() em vez de TUNING.WX78_MAXELECTRICCHARGE fixo: assim a
+	-- skill wx78_circuitry_slot_1 (que dá +1 de carga máxima via SetMaxCharge)
+	-- realmente libera mais um slot de chip utilizável.
+	if (inst.components.upgrademoduleowner:GetMaxChargeLevel() - inst._chip_inuse) < moduleent.components.upgrademodule.slots then
 		return false, "NOTENOUGHSLOTS"
 	else
 		return true
@@ -2596,6 +2742,20 @@ local master_postinit = function(inst)
 	inst.components.upgrademoduleowner.canupgradefn = CanUseUpgradeModule
 	inst.components.upgrademoduleowner:SetChargeLevel(3)
 
+	----------------------------------------------------------------
+	-- wx78 (Chassis/Drones): entidade classificada (corpos reserva + drones de
+	-- escaneamento). Só existe no servidor aqui; do lado do cliente ela chega
+	-- via replicação de rede e se auto-anexa (ver Wunny_AttachClassified_wx78).
+	inst.wx78_classified = SpawnPrefab("wx78_classified")
+	inst.wx78_classified.entity:SetParent(inst.entity)
+
+	inst.CanSpawnBackupBody = Wunny_CanSpawnBackupBody
+	inst.TryToSpawnBackupBody = Wunny_TryToSpawnBackupBody
+
+	inst:AddComponent("wx78_dronescouttracker")
+	inst.components.wx78_dronescouttracker:SetOnStartTrackingFn(Wunny_OnDroneStartTracking)
+	inst.components.wx78_dronescouttracker:SetOnStopTrackingFn(Wunny_OnDroneStopTracking)
+
 	inst:ListenForEvent("energylevelupdate", OnUpgradeModuleChargeChanged)
 
 	----------------------------------------------------------------
@@ -2693,6 +2853,64 @@ local master_postinit = function(inst)
 	inst:ListenForEvent("onhitother", Wolfgang_OnHitOther)
 	inst:ListenForEvent("working", Wolfgang_OnDoingWork)
 	inst:ListenForEvent("tilling", Wolfgang_OnTilling)
+
+	-- wx78_moduledefs.lua (o arquivo vanilla dos módulos de upgrade, reaproveitado
+	-- via require("wx78_moduledefs") lá em cima) checa
+	-- inst.components.skilltreeupdater:IsActivated("wx78_circuitry_xxxbuffs_n")
+	-- pra decidir se um módulo alpha/beta/gama plugado ganha o bônus de tier
+	-- (calor, frio, taser, luz, música, xadrez, radar, digestão, blindagem...).
+	-- A Wunny já tem um componente skilltreeupdater real (adicionado por
+	-- player_common.lua pra todo personagem), só que nunca fica com nada
+	-- "ativado" de verdade porque ApplyAllSkillTreeEffects chama onactivate
+	-- direto, sem passar pelo fluxo normal de ActivateSkill. Como todas as
+	-- skills da Wunny são permanentes por design, sobrescrevemos só o
+	-- IsActivated (igual ao padrão já usado no mightiness com BecomeState) pra
+	-- devolver true nas tags de circuito da Wunny, sem afetar as checagens de
+	-- IsActivated de nenhuma outra skill/personagem.
+	-- Chassis (corpos reserva/revive fantasma), Drones (scout/delivery/zap) e
+	-- Allegiance (lunar/sombrio) usam exatamente o mesmo mecanismo: recipes.lua
+	-- (builder_skill=...), wx78_classified.lua (GetMaxBackupBodies,
+	-- GetNumFreeScoutingDrones) e skilltree_wx78.lua (onactivate dos módulos de
+	-- aliança/drone) só fazem sentido pra Wunny se essas tags também
+	-- devolverem true no IsActivated.
+	local WX78_CIRCUITRY_SKILLS_ALWAYSON = {
+		-- Circuitry
+		wx78_circuitry_betterunplug = true,
+		wx78_circuitry_bettercharge = true,
+		wx78_circuitry_alphabuffs_1 = true,
+		wx78_circuitry_alphabuffs_2 = true,
+		wx78_circuitry_betabuffs_1 = true,
+		wx78_circuitry_betabuffs_2 = true,
+		wx78_circuitry_gammabuffs_1 = true,
+		wx78_circuitry_gammabuffs_2 = true,
+		wx78_circuitry_slot_1 = true,
+		-- Chassis
+		wx78_extrabody_1 = true,
+		wx78_extrabody_2 = true,
+		wx78_extrabody_3 = true,
+		wx78_ghostrevive_1 = true,
+		wx78_ghostrevive_2 = true,
+		wx78_ghostrevive_3 = true,
+		wx78_remotebodyswap = true,
+		wx78_bodycircuits = true,
+		-- Drones
+		wx78_scoutdrone_1 = true,
+		wx78_extradronerange = true,
+		wx78_deliverydrone_1 = true,
+		wx78_deliverydrone_2 = true,
+		wx78_zapdrone_1 = true,
+		wx78_zapdrone_2 = true,
+		-- Allegiance
+		wx78_allegiance_lunar = true,
+		wx78_allegiance_shadow = true,
+	}
+	local skilltreeupdater_IsActivated_prev = inst.components.skilltreeupdater.IsActivated
+	function inst.components.skilltreeupdater:IsActivated(skill, ...)
+		if WX78_CIRCUITRY_SKILLS_ALWAYSON[skill] then
+			return true
+		end
+		return skilltreeupdater_IsActivated_prev(self, skill, ...)
+	end
 
 	WunnySkillTree.ApplyAllSkillTreeEffects(inst)
 end

@@ -33,6 +33,20 @@ local SKILL_SOURCE_CHARACTERS = {
 	"wx78",
 }
 
+-- Skills cujo onactivate faz alguma coisa "permanente" (WatchWorldState,
+-- ListenForEvent, AddComponent...) ANTES de chamar um método específico do
+-- personagem original que a Wunny não tem. Quando isso acontece, o pcall
+-- abaixo captura o erro e loga a falha normalmente, mas o efeito colateral
+-- que já rodou (ex.: um watcher de worldstate.lua com uma função nil) fica
+-- pendurado na Wunny pra sempre — e explode depois, na próxima vez que esse
+-- worldstate mudar (crash em worldstate.lua:32 "attempt to call field '?'").
+-- Caso confirmado: wormwood_blooming_photosynthesis registra
+-- WatchWorldState("isday", inst.UpdatePhotosynthesisState) e só then chama
+-- inst:UpdatePhotosynthesisState(...), que não existe na Wunny.
+local SKIPPED_ONACTIVATE_SKILLS = {
+	wormwood_blooming_photosynthesis = true,
+}
+
 local function ApplyAllSkillTreeEffects(inst)
 	if not TheWorld.ismastersim then
 		return
@@ -44,7 +58,7 @@ local function ApplyAllSkillTreeEffects(inst)
 		local skills = skilltreedefs.SKILLTREE_DEFS[character]
 		if skills then
 			for skill_name, skill in pairs(skills) do
-				if skill.onactivate then
+				if skill.onactivate and not SKIPPED_ONACTIVATE_SKILLS[skill_name] then
 					-- fromload = true: mesma semântica que o jogo usa ao
 					-- reaplicar skills já concedidas (ex.: ao carregar um
 					-- save), em vez de uma ativação "ao vivo" pela UI.
