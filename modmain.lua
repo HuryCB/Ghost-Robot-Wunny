@@ -369,6 +369,7 @@ TUNING.WUNNY_BURROW_HUNGER_PER_DIST = 0.03 -- fome perdida por unidade de distâ
 TUNING.WUNNY_BURROW_MIN_TRAVEL_DIST = 3    -- distância mínima pra valer a viagem (evita "viajar" pra toca ao lado)
 TUNING.WUNNY_BURROW_MAP_SELECT_RADIUS = 4  -- raio de tolerância do clique no mapa em torno do ícone da toca
 TUNING.WUNNY_BURROWDASH_SPEED_MULT = 1.6   -- multiplicador de velocidade da toca-relâmpago (fome sobe na mesma proporção)
+TUNING.WUNNY_JUMPWALL_LANDING_DIST = 1.3   -- distância do centro da parede até o ponto de aterrissagem do outro lado
 -- TUNING.WUNNY_KING_
 -- TUNING.SHADOWBUNNYMAN_ATTACK_PERIOD =
 -- WUNNY_RUNNING_HUNGER_RATETUNNIN.WUNNY_IDLE_HUNGER_RATE = 1
@@ -476,6 +477,56 @@ GLOBAL.ACTIONS.WUNNY_BURROWTRAVEL_MAP.maponly_checkvalidpos_fn = function(act)
     end
 
     return true, nil, x, z, mapent
+end
+
+-- Salto de coelho: clicar com o botão direito numa parede de tier 1 ou
+-- inferior (madeira, palha, pedra básica, ruínas básicas) faz a Wunny saltar
+-- pro outro lado, sem precisar quebrar/rodear. Paredes reforçadas
+-- (stone_2, ruins_2, moonrock, dreadstone, scrap) ficam de fora de propósito.
+local WUNNY_JUMPABLE_WALLS = {
+    wall_wood = true,
+    wall_hay = true,
+    wall_stone = true,
+    wall_ruins = true,
+}
+
+local jumpwall_action = GLOBAL.Action({ rmb = true })
+jumpwall_action.id = "WUNNY_JUMPWALL"
+jumpwall_action.str = "Saltar"
+AddAction(jumpwall_action)
+
+AddComponentAction("SCENE", "workable", function(inst, doer, actions, right)
+    if right and doer:HasTag("wunny") and inst:HasTag("wall") and WUNNY_JUMPABLE_WALLS[inst.prefab] then
+        table.insert(actions, GLOBAL.ACTIONS.WUNNY_JUMPWALL)
+    end
+end)
+
+GLOBAL.ACTIONS.WUNNY_JUMPWALL.fn = function(act)
+    local doer = act.doer
+    local wall = act.target
+    if doer == nil or wall == nil or not doer:HasTag("wunny") then
+        return false
+    end
+
+    local dx, dy, dz = doer.Transform:GetWorldPosition()
+    local wx, wy, wz = wall.Transform:GetWorldPosition()
+
+    local dirx, dirz = wx - dx, wz - dz
+    local len = math.sqrt(dirx * dirx + dirz * dirz)
+    if len < 0.001 then
+        return false
+    end
+    dirx, dirz = dirx / len, dirz / len
+
+    local landx = wx + dirx * TUNING.WUNNY_JUMPWALL_LANDING_DIST
+    local landz = wz + dirz * TUNING.WUNNY_JUMPWALL_LANDING_DIST
+
+    if not GLOBAL.TheWorld.Map:IsPassableAtPoint(landx, 0, landz, false) then
+        return false, "NOTARGET"
+    end
+
+    doer.Physics:Teleport(landx, 0, landz)
+    return true
 end
 
 GLOBAL.ACTIONS.WUNNY_BURROWTRAVEL_MAP.fn = function(act)
@@ -1620,6 +1671,7 @@ AddStategraphPostInit("wilson", function(sg)
     --         or (action.invobject ~= nil and action.invobject:HasTag("slowfertilize") and "fertilize")
     --         or "fertilize_short"
     -- end)
+    sg.actionhandlers[GLOBAL.ACTIONS.WUNNY_JUMPWALL] = GLOBAL.ActionHandler(GLOBAL.ACTIONS.WUNNY_JUMPWALL, "doshortaction")
 end)
 
 -- AddStategraphPostInit("wilson", ActionHandler(ACTIONS.TAKEITEM, NewQuickAction))
