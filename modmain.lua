@@ -370,6 +370,7 @@ TUNING.WUNNY_BURROW_MIN_TRAVEL_DIST = 3    -- distância mínima pra valer a via
 TUNING.WUNNY_BURROW_MAP_SELECT_RADIUS = 4  -- raio de tolerância do clique no mapa em torno do ícone da toca
 TUNING.WUNNY_BURROWDASH_SPEED_MULT = 1.6   -- multiplicador de velocidade da toca-relâmpago (fome sobe na mesma proporção)
 TUNING.WUNNY_JUMPWALL_LANDING_DIST = 1.3   -- distância do centro da parede até o ponto de aterrissagem do outro lado
+TUNING.WUNNY_BUNNYFOLLOWER_DAMAGE = 1      -- dano do coelho selvagem domesticado (cenoura) no combate "bate e foge"
 -- TUNING.WUNNY_KING_
 -- TUNING.SHADOWBUNNYMAN_ATTACK_PERIOD =
 -- WUNNY_RUNNING_HUNGER_RATETUNNIN.WUNNY_IDLE_HUNGER_RATE = 1
@@ -1410,6 +1411,174 @@ AddPrefabPostInit("rabbithole", function(inst)
     inst.OnRemoveEntity = function(inst)
         if inst.hiddenglobalicon ~= nil then
             inst.hiddenglobalicon:Remove()
+        end
+    end
+end)
+
+--------------------------------------------------------------------------
+-- Coelho selvagem domesticado: se a Wunny der uma cenoura pra um "rabbit"
+-- selvagem, ele passa a segui-la. Como follower, ele coleta twigs/cutgrass
+-- de sapling/grass tuft perto e leva pra Wunny (entrega no inventário dela
+-- se tiver menos de um stack do item, senão só solta perto). Se a Wunny
+-- entrar em combate e não houver nada pra coletar por perto, ele ajuda a
+-- lutar no estilo "bate e foge" (ver wunnybunnyfollowerbrain.lua).
+--------------------------------------------------------------------------
+local wunnybunnyfollowerbrain = require("brains/wunnybunnyfollowerbrain")
+
+-- Tem que ser >= CARRY_FOLLOW_MAX da brain, senão o coelho "chega" na Wunny
+-- (Follow retorna SUCCESS) sem nunca entrar no alcance de entrega.
+local WUNNY_BUNNY_DELIVER_DIST = 3
+local WUNNY_BUNNY_LEADER_SEARCH_DIST = 30
+local WUNNY_BUNNY_DEFAULT_STACK = 40
+
+-- Entrega o que o coelho coletou. Fica num DoPeriodicTask, e não num nó da
+-- brain, de propósito: a brain do rabbit é substituída inteira e qualquer nó
+-- que falhe/seja resetado deixaria o item preso no inventário do coelho pra
+-- sempre. Aqui a entrega só depende da distância até a Wunny.
+local function TryDeliverToLeader(inst)
+    local inventory = inst.components.inventory
+    local leader = inst.components.follower ~= nil and inst.components.follower.leader or nil
+
+    if inventory == nil or leader == nil or not leader:IsValid()
+        or leader.components.inventory == nil
+        or not inst:IsNear(leader, WUNNY_BUNNY_DELIVER_DIST) then
+        return
+    end
+
+    local item = inventory:FindItem(function() return true end)
+    if item == nil then
+        return
+    end
+
+    local stacksize = item.components.stackable ~= nil and item.components.stackable.maxsize
+        or WUNNY_BUNNY_DEFAULT_STACK
+    local _, num_held = leader.components.inventory:Has(item.prefab, 1)
+
+    if (num_held or 0) < stacksize then
+        inventory:RemoveItem(item, true)
+        leader.components.inventory:GiveItem(item)
+    else
+        -- Wunny já tem um stack cheio: só solta no chão (o coelho já está
+        -- colado nela nesse ponto, então cai perto dela).
+        inventory:DropItem(item, true)
+    end
+end
+
+-- Rede de segurança pro vínculo com a Wunny: o componente follower vanilla
+-- perde o leader em vários casos (reload, leader saindo do mundo, dano
+-- acidental) e sem leader a brain inteira não tem pra quem entregar nem quem
+-- seguir, e o coelho fica vagando com o item preso. Se ele foi recrutado,
+-- reencontra a Wunny mais próxima e refaz o vínculo.
+local function TryReacquireLeader(inst)
+    if inst.components.follower == nil or inst.components.follower.leader ~= nil then
+        return
+    end
+
+    local x, y, z = inst.Transform:GetWorldPosition()
+    local ents = GLOBAL.TheSim:FindEntities(x, y, z, WUNNY_BUNNY_LEADER_SEARCH_DIST,
+        { "wunny" }, { "playerghost", "INLIMBO" })
+
+    for _, wunny in ipairs(ents) do
+        if wunny.components.leader ~= nil then
+            wunny.components.leader:AddFollower(inst)
+            print("[wunny] coelho follower reencontrou a Wunny:", tostring(wunny))
+            return
+        end
+    end
+end
+
+local function SetUpWunnyBunnyFollower(inst)
+    if inst.components.follower == nil then
+        inst:AddComponent("follower")
+    end
+    -- Sem lealdade por tempo: o vínculo é permanente até a morte de um dos
+    -- dois. neverexpire bloqueia StopFollowing, e KeepLeaderOnAttacked evita
+    -- que um golpe acidental da Wunny (AoE, tentando acertar outra coisa)
+    -- desfaça o recrutamento.
+    inst.components.follower.neverexpire = true
+    inst.components.follower:KeepLeaderOnAttacked()
+
+    if inst.components.inventory == nil then
+        inst:AddComponent("inventory")
+    end
+    inst.components.inventory.maxslots = 2
+
+    inst:AddTag("wunnybunnyfollower")
+    inst:SetBrain(wunnybunnyfollowerbrain)
+    inst._wunny_recruited = true
+
+    if inst._wunny_follower_task == nil then
+        inst._wunny_follower_task = inst:DoPeriodicTask(0.5, function(inst)
+            TryReacquireLeader(inst)
+            TryDeliverToLeader(inst)
+        end)
+    end
+end
+
+local function RecruitWunnyBunnyFollower(inst, giver)
+    if inst._wunny_recruited or giver == nil or giver.components.leader == nil then
+        return
+    end
+
+    SetUpWunnyBunnyFollower(inst)
+    giver.components.leader:AddFollower(inst)
+    print("[wunny] coelho recrutado com cenoura; leader:",
+        tostring(inst.components.follower.leader))
+end
+
+-- O stategraph vanilla do rabbit só tem actionhandler pra EAT e GOHOME; sem
+-- isso o BufferedAction(ACTIONS.PICK) nunca chega a chamar PerformBufferedAction
+-- e o coelho follower fica em loop indo até o sapling/grass tuft e voltando
+-- pra Wunny sem nunca coletar. Reaproveita o estado genérico "action" (o
+-- mesmo que GOHOME usa) pra rodar o PICK.
+AddStategraphPostInit("rabbit", function(sg)
+    sg.actionhandlers[GLOBAL.ACTIONS.PICK] = GLOBAL.ActionHandler(GLOBAL.ACTIONS.PICK, "action")
+end)
+
+AddPrefabPostInit("rabbit", function(inst)
+    if not GLOBAL.TheWorld.ismastersim then
+        return
+    end
+
+    inst:ListenForEvent("oneat", function(inst, data)
+        if data ~= nil and data.food ~= nil and data.food.prefab == "carrot"
+            and data.feeder ~= nil and data.feeder:HasTag("wunny") then
+            RecruitWunnyBunnyFollower(inst, data.feeder)
+        end
+    end)
+
+    -- Diagnóstico: confirma se o loot do PICK realmente entra no inventário do
+    -- coelho (é o que a brain usa pra decidir entre coletar e entregar).
+    inst:ListenForEvent("picksomething", function(inst, data)
+        if inst._wunny_recruited then
+            print("[wunny] coelho coletou:", data ~= nil and tostring(data.loot) or "nil",
+                "| no inventario:",
+                tostring(inst.components.inventory ~= nil
+                    and inst.components.inventory:FindItem(function() return true end)))
+        end
+    end)
+
+    -- OnPreLoad roda antes dos dados dos componentes serem aplicados, então o
+    -- componente follower já existe quando Follower:OnLoad restaura o vínculo
+    -- em cache com a Wunny.
+    local old_onpreload = inst.OnPreLoad
+    inst.OnPreLoad = function(inst, data)
+        if old_onpreload ~= nil then
+            old_onpreload(inst, data)
+        end
+        if data ~= nil and data.wunny_recruited then
+            SetUpWunnyBunnyFollower(inst)
+            print("[wunny] coelho follower restaurado do save")
+        end
+    end
+
+    local old_onsave = inst.OnSave
+    inst.OnSave = function(inst, data)
+        if old_onsave ~= nil then
+            old_onsave(inst, data)
+        end
+        if inst._wunny_recruited then
+            data.wunny_recruited = true
         end
     end
 end)
