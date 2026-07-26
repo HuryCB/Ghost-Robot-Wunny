@@ -172,6 +172,8 @@ local prefabs = {
 	"wortox_portal_jumpin_fx",
 	"wortox_portal_jumpout_fx",
 	"wortox_soul_heal_fx",
+	--Burrow dash (mole, terra se movendo)
+	"mole_move_fx",
 }
 
 local WX78ModuleDefinitionFile = require("wx78_moduledefs")
@@ -2446,7 +2448,10 @@ local master_postinit = function(inst)
 	inst.components.locomotor:SetFasterOnGroundTile(WORLD_TILES.SINKHOLE, true)
 
 	inst:ListenForEvent("locomote", function()
-		if inst.sg ~= nil and inst.sg:HasStateTag("moving") then
+		if inst.is_burrowdashing then
+			-- fome consumida proporcionalmente ao ganho de velocidade da toca
+			inst.components.hunger.hungerrate = TUNING.WUNNY_HUNGER_RATE * TUNING.WUNNY_BURROWDASH_SPEED_MULT
+		elseif inst.sg ~= nil and inst.sg:HasStateTag("moving") then
 			-- inst.components.hunger:SetRate(
 			-- 	inst.runningSpeed
 			-- -- * TUNING.WUNNY_HUNGER_RATE *
@@ -2467,6 +2472,67 @@ local master_postinit = function(inst)
 			inst.components.hunger.hungerrate = TUNING.WUNNY_HUNGER_RATE
 		end
 	end)
+
+	-- Toca-relâmpago: a Wunny cava e se move por baixo da terra, bem mais
+	-- rápido, mas não pode ser usada em combate (nem pra fugir de um ataque
+	-- em andamento nem pra golpear enquanto ativa). Visual reaproveitado do
+	-- "mole_move_fx" vanilla (o montinho de terra se deslocando do mole),
+	-- reespawnado periodicamente na posição da Wunny enquanto ela se move.
+	inst.is_burrowdashing = false
+
+	local function StopBurrowDash(inst)
+		if not inst.is_burrowdashing then
+			return
+		end
+		inst.is_burrowdashing = false
+		inst.components.locomotor:RemoveExternalSpeedMultiplier(inst, "wunny_burrowdash")
+		if inst.components.combat ~= nil then
+			inst.components.combat.canattack = true
+		end
+		if inst.burrowdash_task ~= nil then
+			inst.burrowdash_task:Cancel()
+			inst.burrowdash_task = nil
+		end
+		inst.AnimState:SetMultColour(1, 1, 1, 1)
+		inst:PushEvent("locomote")
+	end
+
+	local function StartBurrowDash(inst)
+		if inst.is_burrowdashing then
+			return
+		end
+		-- não pode ativar em combate: nem com um alvo hostil travado, nem
+		-- durante uma animação de ataque/dano em andamento
+		if (inst.components.combat ~= nil and inst.components.combat.target ~= nil)
+			or (inst.sg ~= nil and (inst.sg:HasStateTag("attack") or inst.sg:HasStateTag("hit"))) then
+			return
+		end
+
+		inst.is_burrowdashing = true
+		inst.components.locomotor:SetExternalSpeedMultiplier(inst, "wunny_burrowdash", TUNING.WUNNY_BURROWDASH_SPEED_MULT)
+		if inst.components.combat ~= nil then
+			inst.components.combat.canattack = false
+		end
+		inst.AnimState:SetMultColour(1, 1, 1, 0)
+		inst:PushEvent("locomote")
+
+		inst.burrowdash_task = inst:DoPeriodicTask(0.3, function()
+			local x, y, z = inst.Transform:GetWorldPosition()
+			SpawnPrefab("mole_move_fx").Transform:SetPosition(x, y, z)
+		end)
+	end
+
+	inst.ToggleBurrowDash = function(inst)
+		if inst.is_burrowdashing then
+			StopBurrowDash(inst)
+		else
+			StartBurrowDash(inst)
+		end
+	end
+
+	inst:ListenForEvent("attacked", function(inst) StopBurrowDash(inst) end)
+	inst:ListenForEvent("death", function(inst) StopBurrowDash(inst) end)
+	inst:ListenForEvent("onremove", function(inst) StopBurrowDash(inst) end)
 
 	-- Stats
 	inst.components.health:SetMaxHealth(TUNING.WUNNY_HEALTH)

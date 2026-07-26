@@ -368,6 +368,7 @@ TUNING.WUNNY_QUICK_ACTION_HUNGER = -0.3
 TUNING.WUNNY_BURROW_HUNGER_PER_DIST = 0.03 -- fome perdida por unidade de distância cavada
 TUNING.WUNNY_BURROW_MIN_TRAVEL_DIST = 3    -- distância mínima pra valer a viagem (evita "viajar" pra toca ao lado)
 TUNING.WUNNY_BURROW_MAP_SELECT_RADIUS = 4  -- raio de tolerância do clique no mapa em torno do ícone da toca
+TUNING.WUNNY_BURROWDASH_SPEED_MULT = 1.6   -- multiplicador de velocidade da toca-relâmpago (fome sobe na mesma proporção)
 -- TUNING.WUNNY_KING_
 -- TUNING.SHADOWBUNNYMAN_ATTACK_PERIOD =
 -- WUNNY_RUNNING_HUNGER_RATETUNNIN.WUNNY_IDLE_HUNGER_RATE = 1
@@ -1359,6 +1360,19 @@ AddPrefabPostInit("rabbithole", function(inst)
         if inst.hiddenglobalicon ~= nil then
             inst.hiddenglobalicon:Remove()
         end
+    end
+end)
+
+-- Tecla R: liga/desliga a "toca-relâmpago" da Wunny (ver ToggleBurrowDash em
+-- wunny.lua). HasInputFocus() evita disparar enquanto o jogador está
+-- digitando no chat/console.
+GLOBAL.TheInput:AddKeyDownHandler(GLOBAL.KEY_R, function()
+    local player = GLOBAL.ThePlayer
+    if player == nil or (player.HUD ~= nil and player.HUD:HasInputFocus()) then
+        return
+    end
+    if player:HasTag("wunny") and player.ToggleBurrowDash ~= nil then
+        player:ToggleBurrowDash()
     end
 end)
 
