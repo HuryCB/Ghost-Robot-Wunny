@@ -1,6 +1,7 @@
 local MakePlayerCharacter = require("prefabs/player_common")
 local WX78Common = require("prefabs/wx78_common")
 local WortoxSoulCommon = require("prefabs/wortox_soul_common")
+local WillowEmberCommon = require("prefabs/willow_ember_common")
 local WX78MoistureMeter = require("widgets/wx78moisturemeter")
 local WendyFlowerOver = require("widgets/wendyflowerover")
 local easing = require("easing")
@@ -22,6 +23,12 @@ local assets = {
 	Asset("ANIM", "anim/ui_beard_1x1.zip"),
 	Asset("ANIM", "anim/ui_beard_2x1.zip"),
 	Asset("ANIM", "anim/ui_beard_3x1.zip"),
+	--Willow (skill "willow_embers"): animação de conjuração das magias de brasa.
+	--O estado "castspellmind" de SGwilson.lua toca "pyrocast_pre"/"pyrocast", que
+	--só existem neste build — sem o AddOverrideBuild em common_postinit a Wunny
+	--conjuraria sem animação nenhuma.
+	Asset("ANIM", "anim/willow_pyrocast.zip"),
+	Asset("ANIM", "anim/willow_mount_pyrocast.zip"),
 }
 
 local prefabsItens = {
@@ -192,6 +199,13 @@ local prefabs = {
 	"beard_sack_1",
 	"beard_sack_2",
 	"beard_sack_3",
+	--Willow (skill "willow_embers"): brasas que caem de criaturas queimadas.
+	--"willow_ember" é quem carrega o spellbook (fire throw/burst/ball/frenzy),
+	--o debuff buff_firefrenzy e a maioria dos FX das magias na própria tabela
+	--`prefabs` dele. "emberlight" (a bola de fogo) é a exceção que ficou de fora
+	--dela — por isso o willow.lua também declara essa à parte, e nós também.
+	"willow_ember",
+	"emberlight",
 }
 
 local WX78ModuleDefinitionFile = require("wx78_moduledefs")
@@ -1466,17 +1480,164 @@ local WILSON_SKILLS_ALWAYSON = {
 	wilson_allegiance_lunar = true,
 }
 
-local function Wilson_InstallSkillWhitelist(inst)
+----------------------------------------------------------------------------------------
+-- Willow: skills concedidas de forma permanente.
+--
+-- Mesma situação do Wilson: das 19 skills abaixo, só willow_controlled_burn_1
+-- (tag "controlled_burner") e willow_embers (tag "ember_master") têm onactivate
+-- — e essas duas tags já vêm de WunnySkillTree.ApplyAllSkillTreeEffects, que já
+-- inclui "willow" na lista de personagens. Todo o resto do efeito vive em
+-- checagens de IsActivated dentro dos arquivos do isqueiro/Bernie/brasas:
+--   controlled_burn_1  -> prefabs/lighter.lua onattack e prefabs/torch.lua
+--                         (ataque com fogo sempre incendeia, sem rolar sorte)
+--   controlled_burn_2/3-> components/burnable.lua (duração/dano do fogo controlado)
+--   attuned_lighter    -> prefabs/lighter.lua RefreshAttunedSkills (channelcastable)
+--   lightradius_1/2    -> prefabs/lighter.lua applyskillbrightness (raio de luz)
+--   embers             -> prefabs/willow_ember.lua updatespells (magia Fire Throw)
+--                         + queda de brasas (ver Willow_OnEntityDropLoot abaixo)
+--   fire_burst/ball/frenzy -> prefabs/willow_ember.lua updatespells (demais magias)
+--   bernieregen_1/2    -> prefabs/bernie_big.lua onLeaderChanged (regeneração)
+--   berniehealth_1/2   -> prefabs/bernie_big.lua onLeaderChanged (vida máxima)
+--   berniespeed_1/2    -> prefabs/bernie_big.lua onLeaderChanged (velocidade)
+--   burnignbernie      -> prefabs/bernie_big.lua onLeaderChanged (Bernie flamejante)
+--                         [o nome é um typo do vanilla, mantido de propósito]
+--   bernieai           -> prefabs/bernie_common.lua hotheaded (acorda perto de
+--                         inimigos, sem depender da sanidade) + bernie_big.lua
+--   berniesanity_1/2   -> prefabs/bernie_common.lua isleadercrazy (Bernie acorda
+--                         com sanidade mais alta)
+--
+-- As skills de allegiance (shadow/lunar) ficam de FORA a pedido: sem elas o
+-- Bernie não vira aliado lunar/sombrio e as duas magias de brasa de aliança não
+-- aparecem no spellbook. Os nós "lock" (willow_bernie_lock, willow_allegiance_
+-- lock_N) também não entram: são só travas da UI da árvore, ninguém consulta
+-- IsActivated neles em tempo de execução.
+--
+-- Os nós de Bernie exigem a tag "bernieowner" (já adicionada em common_postinit)
+-- pra Wunny poder equipar o bernie_inactive; quem popula inst.bigbernies é o
+-- próprio bernie_active.lua/berniebigbrain.lua, não o personagem.
+----------------------------------------------------------------------------------------
+
+local WILLOW_SKILLS_ALWAYSON = {
+	-- Isqueiro / fogo controlado
+	willow_controlled_burn_1 = true,
+	willow_controlled_burn_2 = true,
+	willow_controlled_burn_3 = true,
+	willow_attuned_lighter = true,
+	willow_lightradius_1 = true,
+	willow_lightradius_2 = true,
+	-- Brasas (magias do spellbook de willow_ember)
+	willow_embers = true,
+	willow_fire_burst = true,
+	willow_fire_ball = true,
+	willow_fire_frenzy = true,
+	-- Bernie
+	willow_bernieregen_1 = true,
+	willow_bernieregen_2 = true,
+	willow_berniesanity_1 = true,
+	willow_berniesanity_2 = true,
+	willow_berniespeed_1 = true,
+	willow_berniespeed_2 = true,
+	willow_berniehealth_1 = true,
+	willow_berniehealth_2 = true,
+	willow_bernieai = true,
+	willow_burnignbernie = true,
+}
+
+local function Wunny_InstallSkillWhitelist(inst, skills)
 	local skilltreeupdater = inst.components.skilltreeupdater
 	if skilltreeupdater == nil then
 		return
 	end
 	local IsActivated_prev = skilltreeupdater.IsActivated
 	function skilltreeupdater:IsActivated(skill, ...)
-		if WILSON_SKILLS_ALWAYSON[skill] then
+		if skills[skill] then
 			return true
 		end
 		return IsActivated_prev(self, skill, ...)
+	end
+end
+
+--------------------------------------------------------------------------------------
+-- Willow: queda de brasas (skill "willow_embers").
+--
+-- A whitelist acima só faz as MAGIAS aparecerem no spellbook — quem cria as
+-- brasas que servem de munição é este bloco, portado de willow.lua. Sem ele a
+-- Wunny teria as quatro magias e nunca teria com que pagá-las.
+--
+-- Estrutura idêntica à do Wortox mais acima no arquivo (Wortox_OnEntityDropLoot /
+-- OnEntityDeath / OnRespawnedFromGhost / OnBecameGhost): os dois sistemas ouvem
+-- os mesmos eventos globais "entity_droploot"/"entity_death" em TheWorld, cada um
+-- com o seu próprio par de callbacks guardado numa variável distinta
+-- (inst._willow_* aqui, inst._wortox_* lá) porque RemoveEventCallback casa por
+-- função — reaproveitar o mesmo campo desligaria o listener do outro.
+--------------------------------------------------------------------------------------
+
+local function Willow_ClearNoEmberTask(victim)
+	victim.noembertask = nil
+end
+
+local function Willow_IsValidVictim(victim, explosive)
+	return WillowEmberCommon.HasEmbers(victim) and (victim.components.health:IsDead() or explosive)
+end
+
+local function Willow_OnEntityDropLoot(inst, data)
+	local victim = data.inst
+	if inst.components.skilltreeupdater:IsActivated("willow_embers") and
+		victim ~= nil and
+		victim.noembertask == nil and
+		victim:IsValid() and
+		(victim == inst or
+			(not inst.components.health:IsDead() and
+				Willow_IsValidVictim(victim) and
+				inst:IsNear(victim, TUNING.WILLOW_EMBERDROP_RANGE)
+			)
+		) then
+		--Evita várias Wunnys/Willows por perto gerando brasas do mesmo cadáver
+		victim.noembertask = victim:DoTaskInTime(5, Willow_ClearNoEmberTask)
+		WillowEmberCommon.SpawnEmbersAt(victim, WillowEmberCommon.GetNumEmbers(victim))
+	end
+end
+
+local function Willow_OnEntityDeath(inst, data)
+	if data.inst ~= nil then
+		data.inst._embersource = data.afflicter -- marca quem causou, pra atribuição da brasa
+		--Entidades sem lootdropper (ou explosivas) não disparam "entity_droploot",
+		--então a morte é o único gancho que sobra pra elas.
+		if data.inst.components.lootdropper == nil or data.explosive then
+			Willow_OnEntityDropLoot(inst, data)
+		end
+	end
+end
+
+local function Willow_OnRespawnedFromGhost(inst)
+	if inst._willow_onentitydroplootfn == nil then
+		inst._willow_onentitydroplootfn = function(src, data) Willow_OnEntityDropLoot(inst, data) end
+		inst:ListenForEvent("entity_droploot", inst._willow_onentitydroplootfn, TheWorld)
+	end
+	if inst._willow_onentitydeathfn == nil then
+		inst._willow_onentitydeathfn = function(src, data) Willow_OnEntityDeath(inst, data) end
+		inst:ListenForEvent("entity_death", inst._willow_onentitydeathfn, TheWorld)
+	end
+end
+
+local function Willow_OnBecameGhost(inst)
+	if inst._willow_onentitydroplootfn ~= nil then
+		inst:RemoveEventCallback("entity_droploot", inst._willow_onentitydroplootfn, TheWorld)
+		inst._willow_onentitydroplootfn = nil
+	end
+	if inst._willow_onentitydeathfn ~= nil then
+		inst:RemoveEventCallback("entity_death", inst._willow_onentitydeathfn, TheWorld)
+		inst._willow_onentitydeathfn = nil
+	end
+end
+
+--Bônus de dano da magia Fire Frenzy (skill "willow_fire_frenzy"): a tag
+--"firefrenzy" é aplicada pelo debuff buff_firefrenzy, mas o multiplicador em si
+--mora no customdamagemultfn do personagem — sem isto a magia daria a tag e
+--nenhum dano extra.
+local function Willow_CustomCombatDamage(inst, target, weapon, multiplier, mount)
+	if target.components.burnable and target.components.burnable:IsBurning() and inst:HasTag("firefrenzy") then
+		return TUNING.WILLOW_FIREFRENZY_MULT
 	end
 end
 
@@ -1628,7 +1789,12 @@ local common_postinit = function(inst)
 
 	-- Wilson: server + client (ver comentário em WILSON_SKILLS_ALWAYSON — o
 	-- filtro do menu de crafting roda no cliente).
-	Wilson_InstallSkillWhitelist(inst)
+	Wunny_InstallSkillWhitelist(inst, WILSON_SKILLS_ALWAYSON)
+	-- Willow: também precisa rodar no cliente. willow_ember.lua monta a lista de
+	-- magias do spellbook nos DOIS lados (updatespells é chamada tanto por
+	-- topocket no servidor quanto por DoClientUpdateSpells no cliente), então sem
+	-- o override no cliente a roda de magias abriria vazia.
+	Wunny_InstallSkillWhitelist(inst, WILLOW_SKILLS_ALWAYSON)
 
 	--double loot
 	inst:ListenForEvent("killed", function(inst, data)
@@ -1670,6 +1836,10 @@ local common_postinit = function(inst)
 	inst:ListenForEvent("refreshflowertooltip", RefreshFlowerTooltip)
 
 	inst.AnimState:AddOverrideBuild("wx_upgrade")
+
+	--Willow (magias de brasa): símbolos de "pyrocast_pre"/"pyrocast", tocados pelo
+	--estado castspellmind de SGwilson.lua.
+	inst.AnimState:AddOverrideBuild("willow_pyrocast")
 
 	inst.components.talker.mod_str_fn = string.utf8upper
 
@@ -3391,6 +3561,13 @@ local master_postinit = function(inst)
 	inst:ListenForEvent("ms_respawnedfromghost", Wortox_OnRespawnedFromGhost)
 	inst:ListenForEvent("ms_becameghost", Wortox_OnBecameGhost)
 	Wortox_OnRespawnedFromGhost(inst) -- liga os listeners de morte próxima já no spawn
+
+	--Willow (brasas): mesmo esquema do Wortox acima, com callbacks próprios.
+	inst:ListenForEvent("ms_respawnedfromghost", Willow_OnRespawnedFromGhost)
+	inst:ListenForEvent("ms_becameghost", Willow_OnBecameGhost)
+	Willow_OnRespawnedFromGhost(inst)
+
+	inst.components.combat.customdamagemultfn = Willow_CustomCombatDamage
 
 	--Wolfgang (mightiness / disposição física)
 	if inst.components.efficientuser == nil then
