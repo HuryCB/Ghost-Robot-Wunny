@@ -2455,6 +2455,36 @@ local master_postinit = function(inst)
 		-- end
 	end)
 
+	--Woodlegs-style treasure sense: periodically pings nearby buried treasure (graves, pirate stashes)
+	inst._wunny_treasuresense_marked = {}
+
+	inst:DoPeriodicTask(10, function()
+		if inst.components.health == nil or inst.components.health:IsDead() then
+			return
+		end
+		local pos = Vector3(inst.Transform:GetWorldPosition())
+		local ents = TheSim:FindEntities(pos.x, pos.y, pos.z, 30, { "buried" })
+		for k, v in pairs(ents) do
+			if v:IsValid() and not inst._wunny_treasuresense_marked[v.GUID] then
+				inst._wunny_treasuresense_marked[v.GUID] = true
+
+				local marker = SpawnPrefab("messagebottletreasure_marker")
+				if marker ~= nil then
+					marker.entity:SetParent(v.entity)
+					marker:DoTaskInTime(45, function()
+						if marker:IsValid() then
+							marker:Remove()
+						end
+					end)
+				end
+
+				inst:DoTaskInTime(60, function()
+					inst._wunny_treasuresense_marked[v.GUID] = nil
+				end)
+			end
+		end
+	end)
+
 	inst:RemoveTag("scarytoprey")
 
 	if TheWorld:HasTag("cave") then
