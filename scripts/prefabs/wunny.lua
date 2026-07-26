@@ -25,6 +25,12 @@ local prefabsItens = {
 -- abaixo no arquivo), atribuída de fato junto com o resto do sistema de almas.
 local Wortox_SetNetvar
 
+-- Forward declaration: onbecameghost() usa KillPet, mas a definição dela fica
+-- junto do resto do bloco de pets (petleash/shadowminion), bem mais abaixo. Sem
+-- esta linha as chamadas em onbecameghost resolveriam pro global KillPet (nil),
+-- porque um "local function" só entra em escopo a partir da linha dele.
+local KillPet
+
 TUNING.WUNNY_HEALTH = 65
 TUNING.WUNNY_HUNGER = 140
 TUNING.WUNNY_SANITY = 140
@@ -1528,9 +1534,11 @@ local common_postinit = function(inst)
 		end
 
 		inst._forced_nightvision = net_bool(inst.GUID, "wx78.forced_nightvision", "forced_nightvision_dirty")
-		inst:ListenForEvent("playeractivated", OnPlayerActivated)
-		inst:ListenForEvent("playerdeactivated", OnPlayerDeactivated)
-		inst:ListenForEvent("clientpetskindirty", OnClientPetSkinChanged)
+		-- Os listeners de playeractivated/playerdeactivated/clientpetskindirty NÃO
+		-- entram aqui: eles já são registrados incondicionalmente mais abaixo (junto
+		-- do bloco da Wendy). Registrar nos dois lugares fazia OnPlayerActivated
+		-- rodar duas vezes por ativação em qualquer modo que não fosse quagmire,
+		-- porque ListenForEvent só faz table.insert, sem deduplicar.
 
 		inst:AddComponent("pethealthbar")
 	end
@@ -2150,7 +2158,9 @@ local function OnTimerFinished(inst, data)
 	end
 end
 
-local function KillPet(pet)
+-- Sem "local": preenche a forward declaration do topo do arquivo (ver o comentário
+-- lá). Trocar por "local function" aqui reintroduziria o nil em onbecameghost.
+function KillPet(pet)
 	if pet.components.health:IsInvincible() then
 		--reschedule
 		pet._killtask = pet:DoTaskInTime(0.5, KillPet)
@@ -2444,7 +2454,10 @@ local master_postinit = function(inst)
 		inst.components.sanity:RemoveSanityPenalty(pet)
 	end
 
-	inst:ListenForEvent("death", onbecameghost)
+	-- O listener de "death" -> onbecameghost fica só no bloco do wx78 mais abaixo.
+	-- Estava registrado nos dois lugares, e como ListenForEvent não deduplica,
+	-- onbecameghost rodava duas vezes por morte (uma terceira vez ainda vem do
+	-- "ms_becameghost" registrado em onload).
 
 	inst.components.foodaffinity:AddFoodtypeAffinity(FOODTYPE.VEGGIE, 0.5)
 	inst.components.foodaffinity:AddFoodtypeAffinity(FOODTYPE.MEAT, 0.5)
@@ -2911,7 +2924,11 @@ local master_postinit = function(inst)
 					inst.components.builder.science_bonus = 2
 				elseif v.prefab == "researchlab4" and inst.components.builder.magic_bonus < 2 then
 					inst.components.builder.magic_bonus = 2
-				elseif v.prefab == "researchlab3" and inst.components.builder.science_bonus < 3 then
+				-- researchlab3 é o Shadow Manipulator (tier 3 de MAGIA), então o guard
+				-- tem que olhar magic_bonus. Estava checando science_bonus < 3 — e
+				-- como nada nunca sobe science_bonus acima de 2, o guard era sempre
+				-- verdadeiro e reatribuía magic_bonus a cada tick de 0.2s.
+				elseif v.prefab == "researchlab3" and inst.components.builder.magic_bonus < 3 then
 					inst.components.builder.magic_bonus = 3
 				elseif v.prefab == "seafaring_prototyper" and inst.components.builder.seafaring_bonus < 2 then
 					inst.components.builder.seafaring_bonus = 2
