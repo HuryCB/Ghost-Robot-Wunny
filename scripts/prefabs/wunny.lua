@@ -1,5 +1,6 @@
 local MakePlayerCharacter = require("prefabs/player_common")
 local WX78Common = require("prefabs/wx78_common")
+local WortoxSoulCommon = require("prefabs/wortox_soul_common")
 local WX78MoistureMeter = require("widgets/wx78moisturemeter")
 local WendyFlowerOver = require("widgets/wendyflowerover")
 local easing = require("easing")
@@ -10,11 +11,19 @@ local assets = {
 	Asset("ANIM", "anim/rabbit_hole.zip"),
 	Asset("ANIM", "anim/bunnybeard.zip"),
 	Asset("SCRIPT", "scripts/prefabs/skilltree_willow.lua"),
+	--Wortox (soul hop / almas)
+	Asset("ANIM", "anim/wortox_portal.zip"),
+	Asset("ANIM", "anim/wortox_soul_ball.zip"),
+	Asset("SOUND", "sound/wortox.fsb"),
 }
 
 local prefabsItens = {
 	"carrot",
 }
+
+-- Forward declaration: usada em onload() (definida antes do bloco do Wortox mais
+-- abaixo no arquivo), atribuída de fato junto com o resto do sistema de almas.
+local Wortox_SetNetvar
 
 TUNING.WUNNY_HEALTH = 65
 TUNING.WUNNY_HUNGER = 140
@@ -158,6 +167,11 @@ TUNING.GAMEMODE_STARTING_ITEMS.DEFAULT.WUNNY = {
 local prefabs = {
 	"wobybig",
 	"wobysmall",
+	--Wortox (soul hop / almas)
+	"wortox_soul_spawn",
+	"wortox_portal_jumpin_fx",
+	"wortox_portal_jumpout_fx",
+	"wortox_soul_heal_fx",
 }
 
 local WX78ModuleDefinitionFile = require("wx78_moduledefs")
@@ -755,6 +769,14 @@ local function onload(inst, data)
 		if data.sanityPercent then
 			inst.components.sanity:SetPercent(data.sanityPercent)
 		end
+
+		if data.wortox_freehops ~= nil then
+			inst._wortox_freesoulhop_counter = data.wortox_freehops
+		end
+		if data.wortox_soulhopcost ~= nil then
+			inst._wortox_soulhop_cost = data.wortox_soulhopcost
+		end
+		inst:DoTaskInTime(0, Wortox_SetNetvar)
 	end
 	if data ~= nil then
 		if data.gears_eaten ~= nil then
@@ -824,6 +846,247 @@ local function onload(inst, data)
 	end
 end
 
+--------------------------------------------------------------------------------------
+-- Wortox: sistema de almas (núcleo apenas — sem reviver jogadores, souljar,
+-- moral nice/naughty, decoy ou flauta de pã). Baseado em prefabs/wortox.lua e
+-- prefabs/wortox_soul_common.lua. A cura de vida em si acontece sozinha,
+-- embutida no item "wortox_soul" (ele cura ao ficar um tempo no bolso sem ser
+-- comido) — nada disso precisa de código extra aqui.
+--------------------------------------------------------------------------------------
+
+local function Wortox_IsSoul(item)
+	return item.prefab == "wortox_soul"
+end
+
+local function Wortox_PutSoulOnCooldown(item, cooldowntime, overridepercent)
+	if not Wortox_IsSoul(item) then
+		return
+	end
+	if item.components.rechargeable ~= nil then
+		item.components.rechargeable:Discharge(cooldowntime)
+		if overridepercent then
+			item.components.rechargeable:SetPercent(overridepercent)
+		end
+	end
+end
+
+local function Wortox_RemoveSoulCooldown(item)
+	if not Wortox_IsSoul(item) then
+		return
+	end
+	if item.components.rechargeable ~= nil then
+		item.components.rechargeable:SetPercent(1)
+	end
+end
+
+local function Wortox_GetSouls(inst)
+	local souls = inst.components.inventory:FindItems(Wortox_IsSoul)
+	local count = 0
+	for i, v in ipairs(souls) do
+		count = count + GetStackSize(v)
+	end
+	return souls, count
+end
+
+local function Wortox_ClearNoSoulTask(victim)
+	victim.nosoultask = nil
+end
+
+--Alma cai perto de uma morte (mob morrendo perto da Wunny), ou ela mesma mata algo.
+local function Wortox_OnEntityDropLoot(inst, data)
+	local victim = data.inst
+	if not victim or victim.nosoultask or not victim:IsValid() then
+		return
+	end
+	local shouldspawn = victim == inst
+	if shouldspawn or (
+		not inst.components.health:IsDead() and
+		WortoxSoulCommon.HasSoul(victim) and (victim.components.health:IsDead() or data.explosive)
+	) then
+		if not shouldspawn then
+			shouldspawn = inst:IsNear(victim, TUNING.WORTOX_SOULEXTRACT_RANGE)
+		end
+		if shouldspawn then
+			--Evita múltiplas almas do mesmo cadáver se mais de uma Wunny/Wortox estiver por perto
+			victim.nosoultask = victim:DoTaskInTime(5, Wortox_ClearNoSoulTask)
+			WortoxSoulCommon.SpawnSoulsAt(victim, WortoxSoulCommon.GetNumSouls(victim))
+		end
+	end
+end
+
+local function Wortox_OnEntityDeath(inst, data)
+	if data.inst ~= nil
+		and (data.inst.components.lootdropper == nil or data.inst.components.lootdropper.forcewortoxsouls or data.explosive or data.corpsing) then
+		Wortox_OnEntityDropLoot(inst, data)
+	end
+end
+
+--Alma direto no bolso ao matar outro jogador em PVP
+local function Wortox_OnMurdered(inst, data)
+	if data.incinerated then
+		return
+	end
+	local victim = data.victim
+	if victim ~= nil and
+		victim.nosoultask == nil and
+		victim:IsValid() and
+		not inst.components.health:IsDead() and
+		WortoxSoulCommon.HasSoul(victim) then
+		victim.nosoultask = victim:DoTaskInTime(5, Wortox_ClearNoSoulTask)
+		WortoxSoulCommon.GiveSouls(inst, WortoxSoulCommon.GetNumSouls(victim) * (data.stackmult or 1), inst:GetPosition())
+	end
+end
+
+local function Wortox_OnRespawnedFromGhost(inst)
+	if inst._wortox_onentitydroplootfn == nil then
+		inst._wortox_onentitydroplootfn = function(src, data) Wortox_OnEntityDropLoot(inst, data) end
+		inst:ListenForEvent("entity_droploot", inst._wortox_onentitydroplootfn, TheWorld)
+	end
+	if inst._wortox_onentitydeathfn == nil then
+		inst._wortox_onentitydeathfn = function(src, data) Wortox_OnEntityDeath(inst, data) end
+		inst:ListenForEvent("entity_death", inst._wortox_onentitydeathfn, TheWorld)
+	end
+end
+
+local function Wortox_OnBecameGhost(inst)
+	if inst._wortox_onentitydroplootfn ~= nil then
+		inst:RemoveEventCallback("entity_droploot", inst._wortox_onentitydroplootfn, TheWorld)
+		inst._wortox_onentitydroplootfn = nil
+	end
+	if inst._wortox_onentitydeathfn ~= nil then
+		inst:RemoveEventCallback("entity_death", inst._wortox_onentitydeathfn, TheWorld)
+		inst._wortox_onentitydeathfn = nil
+	end
+end
+
+--Comer uma alma manualmente (ação normal de "comer" via souleater): satisfação de
+--fome + pequeno custo de sanidade. A cura por almas acontece sozinha (ver nota acima).
+local function Wortox_OnEatSoul(inst, soul)
+	inst.components.hunger:DoDelta(TUNING.CALORIES_MED)
+	inst.components.sanity:DoDelta(-TUNING.SANITY_TINY)
+end
+
+--------------------------------------------------------------------------------------
+-- Wortox: teleporte "Soul Hop" (clique direito no chão consome uma alma e
+-- teleporta a Wunny até lá). Os estados de animação (portal_jumpin_pre/
+-- portal_jumpin/portal_jumpout) já existem prontos em SGwilson.lua,
+-- condicionados a inst:HasTag("soulstealer") — não precisamos portar stategraph.
+--------------------------------------------------------------------------------------
+
+local function Wortox_IsNotBlocked(pt)
+	return TheWorld.Map:IsPassableAtPoint(pt:Get()) and not TheWorld.Map:IsGroundTargetBlocked(pt)
+end
+
+local function Wortox_CanBlinkTo(inst, pt)
+	local x, y, z = inst.Transform:GetWorldPosition()
+	return Wortox_IsNotBlocked(pt) and IsTeleportingPermittedFromPointToPoint(x, y, z, pt.x, pt.y, pt.z)
+end
+
+local function Wortox_CanBlinkFromWithMap(inst, pt)
+	local x, y, z = inst.Transform:GetWorldPosition()
+	return IsTeleportingPermittedFromPointToPoint(x, y, z, pt.x, pt.y, pt.z)
+end
+
+local function Wortox_ReticuleTargetFn(inst)
+	return ControllerReticle_Blink_GetPosition(inst, Wortox_IsNotBlocked)
+end
+
+local function Wortox_CanSoulhop(inst, souls)
+	if inst.replica.inventory:Has("wortox_soul", souls or 1) then
+		local rider = inst.replica.rider
+		if rider == nil or not rider:IsRiding() then
+			return true
+		end
+	end
+	return false
+end
+
+local function Wortox_GetPointSpecialActions(inst, pos, useitem, right)
+	if right and useitem == nil then
+		local canblink
+		if inst.checkingmapactions then
+			canblink = inst:CanBlinkFromWithMap(inst.checkingmapactions_pos or inst:GetPosition())
+		else
+			canblink = inst:CanBlinkTo(pos)
+		end
+		if canblink and inst.CanSoulhop and inst:CanSoulhop() then
+			return { ACTIONS.BLINK }
+		end
+	end
+	return {}
+end
+
+local function Wortox_OnSetOwner(inst)
+	if inst.components.playeractionpicker ~= nil then
+		inst.components.playeractionpicker.pointspecialactionsfn = Wortox_GetPointSpecialActions
+	end
+end
+
+Wortox_SetNetvar = function(inst)
+	if inst.player_classified ~= nil then
+		inst.player_classified.freesoulhops:set(inst._wortox_freesoulhop_counter)
+	end
+end
+
+local function Wortox_ClearSoulhopCounter(inst)
+	inst._wortox_freesoulhop_counter = 0
+	inst._wortox_soulhop_cost = 0
+	Wortox_SetNetvar(inst)
+end
+
+local function Wortox_FinishPortalHop(inst)
+	if inst._wortox_finishportalhoptask ~= nil then
+		inst._wortox_finishportalhoptask:Cancel()
+		inst._wortox_finishportalhoptask = nil
+	end
+	if inst._wortox_freesoulhop_counter > 0 then
+		if inst.components.inventory ~= nil then
+			inst.components.inventory:ConsumeByName("wortox_soul", math.max(math.ceil(inst._wortox_soulhop_cost), 1))
+		end
+		Wortox_ClearSoulhopCounter(inst)
+	end
+end
+
+local function Wortox_GetHopsPerSoul(inst)
+	return TUNING.WORTOX_FREEHOP_HOPSPERSOUL
+end
+
+local function Wortox_GetSoulEchoCooldownTime(inst)
+	return TUNING.WORTOX_FREEHOP_TIMELIMIT
+end
+
+local function Wortox_TryToPortalHop(inst, souls, consumeall)
+	local invcmp = inst.components.inventory
+	if invcmp == nil then
+		return false
+	end
+
+	souls = souls or 1
+	local _, soulscount = inst:GetSouls()
+	if soulscount < souls then
+		return false
+	end
+
+	inst._wortox_freesoulhop_counter = inst._wortox_freesoulhop_counter + souls
+	inst._wortox_soulhop_cost = inst._wortox_soulhop_cost + souls
+
+	if not consumeall and inst._wortox_freesoulhop_counter < inst:GetHopsPerSoul() then
+		inst._wortox_soulhop_cost = inst._wortox_soulhop_cost - souls -- Grátis (combo de soul echo).
+		local cooldowntime = inst:GetSoulEchoCooldownTime()
+		invcmp:ForEachItem(Wortox_PutSoulOnCooldown, cooldowntime)
+		if inst._wortox_finishportalhoptask ~= nil then
+			inst._wortox_finishportalhoptask:Cancel()
+		end
+		inst._wortox_finishportalhoptask = inst:DoTaskInTime(cooldowntime, inst.FinishPortalHop)
+	else
+		invcmp:ForEachItem(Wortox_RemoveSoulCooldown)
+		inst:FinishPortalHop()
+	end
+	Wortox_SetNetvar(inst)
+
+	return true
+end
+
 -- This initializes for both the server and client. Tags can be added here.
 local common_postinit = function(inst)
 	-- Minimap icon
@@ -864,13 +1127,26 @@ local common_postinit = function(inst)
 	inst:AddTag("plantkin")
 	-- inst:AddTag("self_fertilizable")
 
-	--Wortox
-	-- inst:AddTag("monster")
-	-- inst:AddTag("soulstealer")
-	-- inst:AddTag("souleater")
-
 	--Wurt
 	-- inst:AddTag("merm_builder")
+
+	--Wortox (soul hop / almas) — implementado abaixo. "monster"/"playermonster" ficam de
+	--fora de propósito (não combina com o tema da Wunny); "souleater" é adicionada
+	--automaticamente pelo próprio componente.
+	inst:AddTag("soulstealer")
+	inst._wortox_freesoulhop_counter = 0
+	inst._wortox_soulhop_cost = 0
+	inst.CanSoulhop = Wortox_CanSoulhop
+	inst.CanBlinkTo = Wortox_CanBlinkTo
+	inst.CanBlinkFromWithMap = Wortox_CanBlinkFromWithMap
+	inst:ListenForEvent("setowner", Wortox_OnSetOwner)
+
+	inst:AddComponent("reticule")
+	inst.components.reticule.targetfn = Wortox_ReticuleTargetFn
+	inst.components.reticule.ease = true
+	inst.components.reticule.twinstickcheckscheme = true
+	inst.components.reticule.twinstickmode = 1
+	inst.components.reticule.twinstickrange = 15
 
 	--wx78
 	-- inst:AddTag("batteryuser")          -- from batteryuser component
@@ -1018,6 +1294,9 @@ local function OnSave(inst, data)
 	if inst.questghost ~= nil then
 		data.questghost = inst.questghost:GetSaveRecord()
 	end
+
+	data.wortox_freehops = inst._wortox_freesoulhop_counter
+	data.wortox_soulhopcost = inst._wortox_soulhop_cost
 end
 
 local function OnLightningStrike(inst)
@@ -2213,6 +2492,22 @@ local master_postinit = function(inst)
 		TheWorld:RemoveTag("hasbunnyking")
 		TheWorld:PushEvent("downgradeBunnys")
 	end, TheWorld)
+
+	--Wortox (soul hop / almas)
+	Wortox_ClearSoulhopCounter(inst)
+	inst.TryToPortalHop = Wortox_TryToPortalHop
+	inst.FinishPortalHop = Wortox_FinishPortalHop
+	inst.GetHopsPerSoul = Wortox_GetHopsPerSoul
+	inst.GetSoulEchoCooldownTime = Wortox_GetSoulEchoCooldownTime
+	inst.GetSouls = Wortox_GetSouls
+
+	inst:AddComponent("souleater")
+	inst.components.souleater:SetOnEatSoulFn(Wortox_OnEatSoul)
+
+	inst:ListenForEvent("murdered", Wortox_OnMurdered)
+	inst:ListenForEvent("ms_respawnedfromghost", Wortox_OnRespawnedFromGhost)
+	inst:ListenForEvent("ms_becameghost", Wortox_OnBecameGhost)
+	Wortox_OnRespawnedFromGhost(inst) -- liga os listeners de morte próxima já no spawn
 
 	WunnySkillTree.ApplyAllSkillTreeEffects(inst)
 end
