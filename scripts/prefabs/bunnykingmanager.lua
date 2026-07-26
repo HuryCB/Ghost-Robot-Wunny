@@ -9,7 +9,7 @@ local BunnyKingManager = Class(function(self, inst)
     self.candidates = {}
     self.candidate_transforming = nil
 
-	self.inst:ListenForEvents("onbunnykingcreated", function(inst, data)
+	self.inst:ListenForEvent("onbunnykingcreated", function(inst, data)
 		self.king = data.king
 	end)
 		

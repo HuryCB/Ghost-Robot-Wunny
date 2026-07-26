@@ -740,6 +740,9 @@ local function onload(inst, data)
 			TheWorld:AddTag("hasbunnyking")
 			TheWorld:PushEvent("upgradeBunnys")
 		end
+		-- restaura o guard de "já recebi o bônus" antes de qualquer
+		-- onbunnykingcreated poder chegar de novo (ver RoyalUpgrade)
+		inst._has_royal_buff = data.has_royal_buff or nil
 		if data.woby ~= nil then
 			inst._woby_spawntask:Cancel()
 			inst._woby_spawntask = nil
@@ -1549,14 +1552,16 @@ local common_postinit = function(inst)
 end
 
 local function OnSave(inst, data)
-	print("tentando salvar king")
-	-- if inst.king ~= nil then
-	print("salvando king")
 	if inst.king then
-		data.king = inst.king ~= nil or nil
+		data.king = true
 	end
-	-- end
-	print("supostamente salvou king")
+	-- guarda separado do "quem é o rei atual" (inst.king): controla só se o
+	-- bônus de +50/+50/+50 já foi aplicado, pra RoyalUpgrade/RoyalDowngrade
+	-- nunca ficarem dependendo de timing de load/migração pra saber se já
+	-- rodaram (ver comentário em RoyalUpgrade)
+	if inst._has_royal_buff then
+		data.has_royal_buff = true
+	end
 	if inst.woby then
 		data.woby = inst.woby:GetSaveRecord()
 	else
@@ -2317,6 +2322,17 @@ local function UpdateStats(inst, healthAmount, hungerAmount, sanityAmount)
 end
 
 local function RoyalUpgrade(inst)
+	-- idempotente por design: "onbunnykingcreated" é reemitido toda vez que a
+	-- fome do rei muda (ver bunnyking.lua:AnnounceKingAlive) e de novo ao
+	-- carregar o save (bunnykingmanager:LoadPostPass), então este guard não
+	-- pode depender só de "inst.king ~= nil" no listener (essa checagem já
+	-- existe lá, mas fica sujeita a timing de load/migração entre shards).
+	-- Checando aqui, na própria função, garante que o +50/+50/+50 nunca é
+	-- aplicado duas vezes nem que timing algum consiga furar o guard.
+	if inst._has_royal_buff then
+		return
+	end
+	inst._has_royal_buff = true
 	UpdateStats(inst, 50, 50, 50)
 
 	-- if inst == nil or inst.components == nil or inst.components.health == nil or inst.components.health:IsDead() or inst:HasTag("playerghost")
@@ -2343,6 +2359,10 @@ local function RoyalUpgrade(inst)
 end
 
 local function RoyalDowngrade(inst)
+	if not inst._has_royal_buff then
+		return
+	end
+	inst._has_royal_buff = false
 	UpdateStats(inst, -50, -50, -50)
 end
 
