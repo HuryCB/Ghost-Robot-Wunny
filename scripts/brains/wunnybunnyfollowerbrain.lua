@@ -17,8 +17,24 @@
 require "behaviours/follow"
 require "behaviours/wander"
 require "behaviours/doaction"
+require "behaviours/runaway"
 
 local GATHER_SEARCH_DIST = 20
+
+-- Percepção de perigo. O coelho vanilla tem 25 de vida e nenhum estado de
+-- ataque, então qualquer bicho hostil no caminho (um frog basta) o mata; ele
+-- precisa desviar em vez de andar reto pro recurso ou pra Wunny.
+local THREAT_SEE_DIST = 7
+local THREAT_SAFE_DIST = 11
+-- Recurso mais perto que isso de um bicho hostil é ignorado na coleta.
+local THREAT_NEAR_TARGET_DIST = 6
+-- Distância máxima da Wunny pra preferir se esconder atrás dela em vez de só
+-- fugir na direção oposta ao bicho.
+local HIDE_BEHIND_LEADER_DIST = 20
+
+local HIDE_FOLLOW_MIN = 0
+local HIDE_FOLLOW_TARGET = 1
+local HIDE_FOLLOW_MAX = 2
 
 -- Perseguir a Wunny pra entregar: precisa terminar mais perto que o alcance de
 -- entrega do DoPeriodicTask (WUNNY_BUNNY_DELIVER_DIST em modmain.lua), senão
@@ -48,6 +64,66 @@ local function GetLeaderPos(inst)
 	return leader ~= nil and leader:IsValid() and Point(leader.Transform:GetWorldPosition()) or nil
 end
 
+-- Não dá pra usar a tag "scarytoprey" da brain vanilla do rabbit aqui: o
+-- jogador também é scarytoprey, e o coelho fugiria da própria Wunny. Filtra
+-- por hostilidade real, ignorando o leader, outros jogadores e os aliados da
+-- bunny army.
+local function IsThreat(inst, ent)
+	if ent == inst
+		or ent == GetLeader(inst)
+		or not ent:IsValid()
+		or ent:HasTag("player")
+		or ent:HasTag("wunnybunnyfollower")
+		or ent:HasTag("bunnyman")
+		or ent.components.combat == nil
+		or (ent.components.health ~= nil and ent.components.health:IsDead()) then
+		return false
+	end
+	return ent:HasTag("monster")
+		or ent:HasTag("hostile")
+		or ent.components.combat.target == inst
+		or ent.components.combat.target == GetLeader(inst)
+end
+
+-- ignore_leader_target: o bicho que a Wunny já está enfrentando não conta como
+-- perigo do qual fugir, senão o nó de fuga sempre venceria o de combate e o
+-- coelho nunca ajudaria na briga (o "bate e foge" já cuida de recuar dele).
+local function FindThreat(inst, dist, ignore_leader_target)
+	local leader = GetLeader(inst)
+	local leadertarget = leader ~= nil and leader.components.combat ~= nil
+		and leader.components.combat.target or nil
+	local x, y, z = inst.Transform:GetWorldPosition()
+	local ents = TheSim:FindEntities(x, y, z, dist or THREAT_SEE_DIST, { "_combat" }, { "INLIMBO", "wall", "structure" })
+	for _, ent in ipairs(ents) do
+		if IsThreat(inst, ent) and not (ignore_leader_target and ent == leadertarget) then
+			return ent
+		end
+	end
+	return nil
+end
+
+local function IsDangerNear(inst)
+	return FindThreat(inst, THREAT_SEE_DIST, true) ~= nil
+end
+
+-- Mesma checagem, mas em volta de um ponto/entidade qualquer (usada pra
+-- descartar recursos guardados por um bicho hostil).
+local function IsThreatNearPoint(inst, ent)
+	local x, y, z = ent.Transform:GetWorldPosition()
+	local ents = TheSim:FindEntities(x, y, z, THREAT_NEAR_TARGET_DIST, { "_combat" }, { "INLIMBO", "wall", "structure" })
+	for _, other in ipairs(ents) do
+		if IsThreat(inst, other) then
+			return true
+		end
+	end
+	return false
+end
+
+local function LeaderIsCloseEnoughToHide(inst)
+	local leader = GetLeader(inst)
+	return leader ~= nil and leader:IsValid() and inst:IsNear(leader, HIDE_BEHIND_LEADER_DIST)
+end
+
 local function IsCarryingItem(inst)
 	return inst.components.inventory ~= nil
 		and inst.components.inventory:FindItem(function() return true end) ~= nil
@@ -59,7 +135,9 @@ local function FindGatherTarget(inst)
 	for _, ent in ipairs(ents) do
 		if GATHERABLE_PREFABS[ent.prefab]
 			and ent.components.pickable ~= nil
-			and ent.components.pickable:CanBePicked() then
+			and ent.components.pickable:CanBePicked()
+			-- Recurso com bicho hostil em cima não vale a viagem.
+			and not IsThreatNearPoint(inst, ent) then
 			return ent
 		end
 	end
@@ -157,6 +235,23 @@ end)
 function WunnyBunnyFollowerBrain:OnStart()
 	local root = PriorityNode(
 	{
+		-- Prioridade máxima: sair de perto de bicho hostil. Se a Wunny está
+		-- por perto ele se esconde atrás dela (que resolve a ameaça e, de
+		-- bônus, isso o coloca no alcance de entrega); senão foge na direção
+		-- oposta ao bicho.
+		WhileNode(function() return IsDangerNear(self.inst) end, "Danger",
+			PriorityNode(
+			{
+				IfNode(function() return LeaderIsCloseEnoughToHide(self.inst) end, "HideBehindLeader",
+					Follow(self.inst, GetLeader, HIDE_FOLLOW_MIN, HIDE_FOLLOW_TARGET, HIDE_FOLLOW_MAX)),
+				-- O último argumento (safe_point_fn) desvia a fuga na direção
+				-- da Wunny em vez de só na oposta ao bicho, pra ele não fugir
+				-- pro mato e sumir com o item.
+				RunAway(self.inst,
+					{ fn = function(ent) return IsThreat(self.inst, ent) end, tags = { "_combat" }, notags = { "INLIMBO", "wall", "structure" } },
+					THREAT_SEE_DIST, THREAT_SAFE_DIST, nil, nil, nil, nil, GetLeaderPos),
+			}, .25)),
+
 		-- Carregando algo: cola na Wunny até entrar no alcance de entrega.
 		WhileNode(function() return IsCarryingItem(self.inst) end, "Carrying",
 			Follow(self.inst, GetLeader, CARRY_FOLLOW_MIN, CARRY_FOLLOW_TARGET, CARRY_FOLLOW_MAX)),
