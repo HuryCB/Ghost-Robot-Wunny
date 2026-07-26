@@ -1255,6 +1255,17 @@ AddComponentPostInit("skinner", function(self, inst)
     end
 end)
 
+-- A Wunny herda tanto o "dogrider" (Walter/Woby, badge de fome do Woby) quanto
+-- o "strongman" (Wolfgang, badge de mightiness). O jogo vanilla nunca espera os
+-- dois badges no mesmo personagem, então ambos caem na mesma posição
+-- (column5, 20, 0) e ficam sobrepostos. Reposiciona o badge do Woby pra baixo
+-- do badge de mightiness só pra Wunny.
+AddClassPostConstruct("widgets/statusdisplays", function(self)
+    if self.owner ~= nil and self.owner.prefab == "wunny" and self.pethungerbadge ~= nil then
+        self.pethungerbadge:SetPosition(self.column5, -20, 0)
+    end
+end)
+
 
 -- local containers_widgetsetup_custom = containers.widgetsetup
 

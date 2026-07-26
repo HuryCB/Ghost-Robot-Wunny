@@ -1087,6 +1087,141 @@ local function Wortox_TryToPortalHop(inst, souls, consumeall)
 	return true
 end
 
+--Wolfgang (mightiness / disposição física) — só o núcleo mecânico: ganha/perde
+--"mightiness" batalhando e trabalhando, com efeitos de dano/eficiência/fome por
+--estado. Sem academia, coach ou bônus de dano planar (ligados a skilltree/gym
+--do Wolfgang). A parte visual usa só ApplyAnimScale (a Wunny não tem builds
+--alternativos tipo "wolfgang_skinny"/"wolfgang_mighty"), então BecomeState é
+--sobrescrito por instância (abaixo, no master_postinit) para não chamar
+--skinner:SetSkinMode com nomes de build do Wolfgang.
+local function Wunny_MightinessScale(state)
+	return state == "wimpy" and 0.9 or state == "mighty" and 1.2 or 1
+end
+
+local function Wunny_MightinessBecomeState(self, state)
+	if not self:CanTransform(state) then
+		return
+	end
+
+	local damagemult = state == "wimpy" and 0.75 or state == "mighty" and 2 or nil
+	local work_eff = state == "wimpy" and TUNING.WIMPY_WORK_EFFECTIVENESS or state == "mighty" and TUNING.MIGHTY_WORK_EFFECTIVENESS or nil
+	local hunger_mult = state == "wimpy" and TUNING.WIMPY_HUNGER_RATE_MULT or nil
+
+	if damagemult ~= nil then
+		self.inst.components.combat.externaldamagemultipliers:SetModifier(self.inst, damagemult)
+	else
+		self.inst.components.combat.externaldamagemultipliers:RemoveModifier(self.inst)
+	end
+
+	self.inst.components.hunger.burnrate = hunger_mult or 1
+
+	if work_eff ~= nil then
+		self.inst.components.workmultiplier:AddMultiplier(ACTIONS.CHOP, work_eff, self.inst)
+		self.inst.components.workmultiplier:AddMultiplier(ACTIONS.MINE, work_eff, self.inst)
+		self.inst.components.workmultiplier:AddMultiplier(ACTIONS.HAMMER, work_eff, self.inst)
+		self.inst.components.efficientuser:AddMultiplier(ACTIONS.CHOP, work_eff, self.inst)
+		self.inst.components.efficientuser:AddMultiplier(ACTIONS.MINE, work_eff, self.inst)
+		self.inst.components.efficientuser:AddMultiplier(ACTIONS.HAMMER, work_eff, self.inst)
+	else
+		self.inst.components.workmultiplier:RemoveMultiplier(ACTIONS.CHOP, self.inst)
+		self.inst.components.workmultiplier:RemoveMultiplier(ACTIONS.MINE, self.inst)
+		self.inst.components.workmultiplier:RemoveMultiplier(ACTIONS.HAMMER, self.inst)
+		self.inst.components.efficientuser:RemoveMultiplier(ACTIONS.CHOP, self.inst)
+		self.inst.components.efficientuser:RemoveMultiplier(ACTIONS.MINE, self.inst)
+		self.inst.components.efficientuser:RemoveMultiplier(ACTIONS.HAMMER, self.inst)
+	end
+
+	if not self.inst:HasTag("ingym") and not self.inst.components.rider:IsRiding() then
+		self.inst:ApplyAnimScale("mightiness", Wunny_MightinessScale(state))
+	end
+
+	self.inst:RemoveTag("mightiness_" .. self.state)
+	self.inst:AddTag("mightiness_" .. state)
+
+	local previous_state = self.state
+	self.state = state
+
+	self.inst:PushEvent("mightiness_statechange", { previous_state = previous_state, state = state })
+end
+
+local function Wunny_MightinessGetScale(self)
+	return Wunny_MightinessScale(self.state)
+end
+
+local function Wolfgang_OnHitOther(inst, data)
+	local target = data.target
+	if target ~= nil and (
+			data.weapon == nil or (
+				(data.weapon.components.inventoryitem ~= nil and data.weapon.components.inventoryitem:IsHeldBy(inst)) and
+				(data.weapon.components.weapon == nil or data.weapon.components.weapon.projectile == nil)
+			)) then
+		local delta = target:HasTag("epic") and TUNING.WOLFGANG_MIGHTINESS_ATTACK_GAIN_GIANT
+			or target:HasTag("smallcreature") and TUNING.WOLFGANG_MIGHTINESS_ATTACK_GAIN_SMALLCREATURE
+			or TUNING.WOLFGANG_MIGHTINESS_ATTACK_GAIN_DEFAULT
+
+		inst.components.mightiness:DoDelta(delta)
+	end
+end
+
+local function Wolfgang_OnDoingWork(inst, data)
+	if data ~= nil and data.target ~= nil then
+		local workable = data.target.components.workable
+		if workable ~= nil then
+			local work_action = workable:GetWorkAction()
+			if work_action ~= nil then
+				local gains = TUNING.WOLFGANG_MIGHTINESS_WORK_GAIN[work_action.id]
+				if gains ~= nil then
+					inst.components.mightiness:DoDelta(gains)
+				end
+			end
+		end
+	end
+end
+
+local function Wolfgang_OnTilling(inst)
+	inst.components.mightiness:DoDelta(TUNING.WOLFGANG_MIGHTINESS_WORK_GAIN.TILL)
+end
+
+-- Precisam existir tanto no client quanto no server (por isso são atribuídas em
+-- common_postinit) pois o widget da UI (StatusDisplays:AddMightiness) chama
+-- owner:GetMightiness() direto, sem checar nil antes.
+local function Wolfgang_GetMightiness(inst)
+	if inst.components.mightiness ~= nil then
+		return inst.components.mightiness:GetPercent()
+	elseif inst.player_classified ~= nil then
+		return inst.player_classified.currentmightiness:value() / TUNING.MIGHTINESS_MAX
+	else
+		return 0
+	end
+end
+
+local function Wolfgang_GetMightinessRateScale(inst)
+	if inst.components.mightiness ~= nil then
+		return inst.components.mightiness:GetRateScale()
+	elseif inst.player_classified ~= nil then
+		return inst.player_classified.mightinessratescale:value()
+	else
+		return RATE_SCALE.NEUTRAL
+	end
+end
+
+local function Wolfgang_GetCurrentMightinessState(inst)
+	if inst.components.mightiness ~= nil then
+		return inst.components.mightiness:GetState()
+	elseif inst.player_classified ~= nil then
+		local value = inst.player_classified.currentmightiness:value()
+		if value >= TUNING.MIGHTY_THRESHOLD then
+			return "mighty"
+		elseif value >= TUNING.WIMPY_THRESHOLD then
+			return "normal"
+		else
+			return "wimpy"
+		end
+	else
+		return "wimpy"
+	end
+end
+
 -- This initializes for both the server and client. Tags can be added here.
 local common_postinit = function(inst)
 	-- Minimap icon
@@ -1117,7 +1252,16 @@ local common_postinit = function(inst)
 	-- inst:AddTag("handyperson")
 
 	--wolfgang
-	-- inst:AddTag("strongman")
+	-- "strongman" é o que faz a UI da barra de mightiness (StatusDisplays:AddMightiness)
+	-- aparecer — não precisa do componente "strongman" (esse é só do gym) nem
+	-- habilita o gym em si, só libera a UI e receitas/checagens de dumbbell
+	inst:AddTag("strongman")
+	-- mightiness_normal (do componente mightiness) adicionada no estado
+	-- pristine por otimização, igual o Wolfgang faz
+	inst:AddTag("mightiness_normal")
+	inst.GetMightiness = Wolfgang_GetMightiness
+	inst.GetMightinessRateScale = Wolfgang_GetMightinessRateScale
+	inst.GetCurrentMightinessState = Wolfgang_GetCurrentMightinessState
 
 	--Woodie
 	inst:AddTag("woodcutter")
@@ -2508,6 +2652,17 @@ local master_postinit = function(inst)
 	inst:ListenForEvent("ms_respawnedfromghost", Wortox_OnRespawnedFromGhost)
 	inst:ListenForEvent("ms_becameghost", Wortox_OnBecameGhost)
 	Wortox_OnRespawnedFromGhost(inst) -- liga os listeners de morte próxima já no spawn
+
+	--Wolfgang (mightiness / disposição física)
+	if inst.components.efficientuser == nil then
+		inst:AddComponent("efficientuser")
+	end
+	inst:AddComponent("mightiness")
+	inst.components.mightiness.BecomeState = Wunny_MightinessBecomeState
+	inst.components.mightiness.GetScale = Wunny_MightinessGetScale
+	inst:ListenForEvent("onhitother", Wolfgang_OnHitOther)
+	inst:ListenForEvent("working", Wolfgang_OnDoingWork)
+	inst:ListenForEvent("tilling", Wolfgang_OnTilling)
 
 	WunnySkillTree.ApplyAllSkillTreeEffects(inst)
 end
