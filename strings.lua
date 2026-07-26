@@ -67,6 +67,27 @@ STRINGS.RECIPE_DESC.STRAWHAT = "Helps you stay cool and dry. Wunny can pick up b
 STRINGS.NAMES.WUNNYPICKAXECANE = "Pick Axe Cane"
 STRINGS.NAMES.WUNNYPICKCANE = "Pick Cane"
 STRINGS.NAMES.WUNNYAXECANE = "Axe Cane"
+STRINGS.NAMES.WUNNYPICKAXECANELANTERN = "Pick Axe Cane Lantern"
+
+-- Os bunnymen em si não tinham nome (só as casas deles), então apareciam como
+-- "MISSING NAME" ao passar o mouse. Cada nome espelha o da casa correspondente
+-- acima pra ficar óbvio qual casa cospe qual coelho.
+STRINGS.NAMES.NEWBUNNYMAN = "Chopping Bunnyman"
+STRINGS.NAMES.EVERYTHINGBUNNYMAN = "Everything Bunnyman"
+STRINGS.NAMES.DAYBUNNYMAN = "Day Bunnyman"
+STRINGS.NAMES.ULTRABUNNYMAN = "Ultra Bunnyman"
+STRINGS.NAMES.SHADOWBUNNYMAN = "Shadow Bunnyman"
+STRINGS.NAMES.DWARFBUNNYMAN = "Dwarf Bunnyman"
+-- Este é o que carrega coisas (tem componente "container").
+STRINGS.NAMES.CONTAINERBUNNYMAN = "Pack Bunnyman"
+
+STRINGS.NAMES.WUNNYRABBITHOUSE = "Wunny's Bunnyhouse"
+STRINGS.NAMES.RABBITAMULET = "Bunny Amulet"
+
+STRINGS.NAMES.SPIDERBUNNY = "Spider Bunny"
+STRINGS.NAMES.BUNNYBAT = "Bunny Bat"
+STRINGS.NAMES.SNAKEKING = "Snake King"
+STRINGS.NAMES.WUNNYWALRUS = "Bunny Walrus"
 
 -- TRINGS.RECIPE_DESC.LUCY = "Woodie's axe for Wunny"
 

@@ -53,6 +53,7 @@ PrefabFiles = {
     "wunnyicebox",
     "wunny_burrow",
     "wunny_burrowdash_fx",
+    "wunny_burrowdash_rabbit_fx",
     -- "beardlordback"
 }
 

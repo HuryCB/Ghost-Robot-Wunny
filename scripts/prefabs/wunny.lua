@@ -2505,9 +2505,24 @@ local master_postinit = function(inst)
 	-- montinhos de terra.
 	local WUNNY_BURROWDASH_ENTER_TIME = 0.5
 	local WUNNY_BURROWDASH_HOLE_FADE_TIME = 0.2
+	-- Quanto do tempo de entrada ela passa já como coelho, no fim: ela encolhe
+	-- como Wunny até sobrar isso e então o coelho assume o resto da descida.
+	local WUNNY_BURROWDASH_RABBIT_TIME = 0.3
 	-- Tamanho em que ela desaparece dentro do buraco, mais ou menos o de um
 	-- rabbit.
 	local WUNNY_BURROWDASH_MIN_SCALE = 0.5
+	-- Sobra do tempo de entrada em que quem aparece é a própria Wunny (o resto é
+	-- o coelho). Usado nas duas pontas: encolhendo na entrada, crescendo na saída.
+	local WUNNY_BURROWDASH_WUNNY_TIME = math.max(FRAMES, WUNNY_BURROWDASH_ENTER_TIME - WUNNY_BURROWDASH_RABBIT_TIME)
+
+	local BURROWDASH_TASKS =
+	{
+		"burrowdash_task",
+		"burrowdash_enter_task",
+		"burrowdash_swap_task",
+		"burrowdash_hidehole_task",
+		"burrowdash_shrink_task",
+	}
 
 	local function RemoveBurrowDashHoleFX(inst)
 		if inst.burrowdash_holefx ~= nil then
@@ -2518,37 +2533,178 @@ local master_postinit = function(inst)
 		end
 	end
 
-	local function StopBurrowDash(inst)
+	local function RemoveBurrowDashRabbitFX(inst)
+		if inst.burrowdash_rabbitfx ~= nil then
+			if inst.burrowdash_rabbitfx:IsValid() then
+				inst.burrowdash_rabbitfx:Remove()
+			end
+			inst.burrowdash_rabbitfx = nil
+		end
+	end
+
+	-- Alcance da varredura que tira a Wunny da mira de quem já a perseguia. Bem
+	-- maior que o raio de agressão típico porque um hound em perseguição pode
+	-- estar longe e ainda vindo.
+	local WUNNY_BURROWDASH_DROP_AGGRO_DIST = 30
+
+	-- A tag "notarget" sozinha NÃO resolve: ela só bloqueia mira nova (o
+	-- Combat:SetTarget a checa, e as brains a usam como exclude tag no
+	-- FindEntities), mas Combat:IsValidTarget não olha pra ela, então quem já
+	-- estava perseguindo continua perseguindo e acertando uma tela vazia. Por isso
+	-- a varredura com DropTarget, que é como a vanilla faz nesses casos (ver
+	-- components/repellent.lua e prefabs/spider_buffs.lua).
+	local function DropBurrowDashAggro(inst)
+		local x, y, z = inst.Transform:GetWorldPosition()
+		local ents = TheSim:FindEntities(x, y, z, WUNNY_BURROWDASH_DROP_AGGRO_DIST, { "_combat" }, { "INLIMBO", "player" })
+		for _, ent in ipairs(ents) do
+			if ent.components.combat ~= nil and ent.components.combat.target == inst then
+				ent.components.combat:DropTarget()
+			end
+		end
+	end
+
+	-- Enquanto está invisível debaixo da terra ela não pode ser alvo: sem isso um
+	-- hound persegue e acerta uma tela vazia, e o golpe (que o jogador não tinha
+	-- como ver chegando) a ejetava da toca.
+	--
+	-- Só remove a tag se foi esta skill que a colocou — outra fonte (godmode,
+	-- console) pode ter adicionado antes, e apagar a dela seria um efeito
+	-- colateral silencioso.
+	local function SetBurrowDashNoTarget(inst, hidden)
+		if hidden then
+			if not inst:HasTag("notarget") then
+				inst:AddTag("notarget")
+				inst.burrowdash_notarget = true
+			end
+			DropBurrowDashAggro(inst)
+		elseif inst.burrowdash_notarget then
+			inst:RemoveTag("notarget")
+			inst.burrowdash_notarget = nil
+		end
+	end
+
+	local function ClearBurrowDashTasks(inst)
+		for _, name in ipairs(BURROWDASH_TASKS) do
+			if inst[name] ~= nil then
+				inst[name]:Cancel()
+				inst[name] = nil
+			end
+		end
+	end
+
+	-- Trava o controle durante as animações de entrada e saída, senão ela sai
+	-- andando (e o coelho visual, que fica parado na posição de spawn, se descola
+	-- dela) no meio da transformação.
+	local function SetBurrowDashLocked(inst, locked)
+		-- classified pode já ter sido destruído se a Wunny estiver sendo removida
+		-- no meio da animação (AbortBurrowDash também roda no "onremove").
+		if inst.components.playercontroller ~= nil and inst.components.playercontroller.classified ~= nil then
+			inst.components.playercontroller:Enable(not locked)
+		end
+		if locked then
+			inst.components.locomotor:Stop()
+		end
+		inst.burrowdash_locked = locked or nil
+	end
+
+	-- Encerramento seco, sem animação. Serve tanto pra interrupção à força (dano,
+	-- morte, remoção) quanto como último passo da saída animada, que chega aqui já
+	-- com a Wunny visível e no tamanho certo.
+	local function AbortBurrowDash(inst)
 		if not inst.is_burrowdashing then
 			return
 		end
 		inst.is_burrowdashing = false
+		inst.burrowdash_exiting = nil
+		ClearBurrowDashTasks(inst)
+		RemoveBurrowDashHoleFX(inst)
+		RemoveBurrowDashRabbitFX(inst)
+		SetBurrowDashNoTarget(inst, false)
+		if inst.burrowdash_locked then
+			SetBurrowDashLocked(inst, false)
+		end
 		inst.components.locomotor:RemoveExternalSpeedMultiplier(inst, "wunny_burrowdash")
 		if inst.components.combat ~= nil then
 			inst.components.combat.canattack = true
 		end
-		if inst.burrowdash_task ~= nil then
-			inst.burrowdash_task:Cancel()
-			inst.burrowdash_task = nil
-		end
-		-- As duas tarefas do encadeamento de entrada podem estar pendentes se a
-		-- toca for desligada (ou a Wunny for atacada) durante a animação.
-		if inst.burrowdash_enter_task ~= nil then
-			inst.burrowdash_enter_task:Cancel()
-			inst.burrowdash_enter_task = nil
-		end
-		if inst.burrowdash_hidehole_task ~= nil then
-			inst.burrowdash_hidehole_task:Cancel()
-			inst.burrowdash_hidehole_task = nil
-		end
-		if inst.burrowdash_shrink_task ~= nil then
-			inst.burrowdash_shrink_task:Cancel()
-			inst.burrowdash_shrink_task = nil
-		end
-		RemoveBurrowDashHoleFX(inst)
 		inst.Transform:SetScale(1, 1, 1)
 		inst.AnimState:SetMultColour(1, 1, 1, 1)
 		inst:PushEvent("locomote")
+	end
+
+	-- Saída da toca: a coreografia da entrada ao contrário. O buraco reaparece, o
+	-- coelho emerge do fundo crescendo, dá lugar à Wunny (que termina de crescer
+	-- até o tamanho normal) e só então o buraco some. Mesma duração da entrada.
+	local function StartBurrowDashExit(inst)
+		if not inst.is_burrowdashing or inst.burrowdash_exiting then
+			return
+		end
+		inst.burrowdash_exiting = true
+
+		-- Para os montinhos de terra e prega a Wunny no ponto onde ela vai emergir.
+		ClearBurrowDashTasks(inst)
+		inst.components.locomotor:RemoveExternalSpeedMultiplier(inst, "wunny_burrowdash")
+		SetBurrowDashLocked(inst, true)
+		inst:PushEvent("locomote")
+
+		-- Normaliza o ponto de partida: se o jogador apertou R no meio da animação
+		-- de entrada ela pode ainda estar visível e/ou encolhida, e a saída
+		-- assumiria o contrário.
+		inst.AnimState:SetMultColour(1, 1, 1, 0)
+		inst.Transform:SetScale(1, 1, 1)
+
+		local x, y, z = inst.Transform:GetWorldPosition()
+		inst.burrowdash_holefx = SpawnPrefab("wunny_burrowdash_fx")
+		inst.burrowdash_holefx.Transform:SetPosition(x, y, z)
+		inst.SoundEmitter:PlaySound("dontstarve_DLC001/creatures/mole/emerge")
+
+		-- Fase 1: o coelho sobe do fundo do buraco, crescendo.
+		inst.burrowdash_rabbitfx = SpawnPrefab("wunny_burrowdash_rabbit_fx")
+		inst.burrowdash_rabbitfx.Transform:SetPosition(x, y, z)
+		inst.burrowdash_rabbitfx.Transform:SetRotation(inst.Transform:GetRotation())
+		inst.burrowdash_rabbitfx.Transform:SetScale(WUNNY_BURROWDASH_MIN_SCALE, WUNNY_BURROWDASH_MIN_SCALE, WUNNY_BURROWDASH_MIN_SCALE)
+
+		local grow_start = GetTime()
+		inst.burrowdash_shrink_task = inst:DoPeriodicTask(FRAMES, function(inst)
+			local elapsed = GetTime() - grow_start
+			local k, target
+			if inst.burrowdash_rabbitfx ~= nil then
+				k = math.min(1, elapsed / WUNNY_BURROWDASH_RABBIT_TIME)
+				target = inst.burrowdash_rabbitfx
+			else
+				-- Fase 2: a Wunny retoma de onde o coelho parou.
+				k = math.min(1, (elapsed - WUNNY_BURROWDASH_RABBIT_TIME) / WUNNY_BURROWDASH_WUNNY_TIME)
+				target = inst
+			end
+			local scale = WUNNY_BURROWDASH_MIN_SCALE + k * (1 - WUNNY_BURROWDASH_MIN_SCALE)
+			target.Transform:SetScale(scale, scale, scale)
+		end)
+
+		-- Troca de volta: o coelho sai de cena e a Wunny reaparece no tamanho dele.
+		inst.burrowdash_swap_task = inst:DoTaskInTime(WUNNY_BURROWDASH_RABBIT_TIME, function(inst)
+			inst.burrowdash_swap_task = nil
+			RemoveBurrowDashRabbitFX(inst)
+			inst.Transform:SetScale(WUNNY_BURROWDASH_MIN_SCALE, WUNNY_BURROWDASH_MIN_SCALE, WUNNY_BURROWDASH_MIN_SCALE)
+			inst.AnimState:SetMultColour(1, 1, 1, 1)
+			-- Visível de novo, então volta a ser alvo válido.
+			SetBurrowDashNoTarget(inst, false)
+		end)
+
+		inst.burrowdash_enter_task = inst:DoTaskInTime(WUNNY_BURROWDASH_RABBIT_TIME + WUNNY_BURROWDASH_WUNNY_TIME, function(inst)
+			inst.burrowdash_enter_task = nil
+			if inst.burrowdash_shrink_task ~= nil then
+				inst.burrowdash_shrink_task:Cancel()
+				inst.burrowdash_shrink_task = nil
+			end
+			inst.Transform:SetScale(1, 1, 1)
+
+			-- O buraco fica um instante a mais sozinho, espelhando a pausa da
+			-- entrada, e aí a skill encerra de fato (destravando o controle).
+			inst.burrowdash_hidehole_task = inst:DoTaskInTime(WUNNY_BURROWDASH_HOLE_FADE_TIME, function(inst)
+				inst.burrowdash_hidehole_task = nil
+				AbortBurrowDash(inst)
+			end)
+		end)
 	end
 
 	local function StartBurrowDash(inst)
@@ -2567,21 +2723,51 @@ local master_postinit = function(inst)
 		if inst.components.combat ~= nil then
 			inst.components.combat.canattack = false
 		end
+		SetBurrowDashLocked(inst, true)
 		inst:PushEvent("locomote")
 
 		-- Encadeamento visual da entrada na toca: o buraco aparece sob a Wunny,
-		-- que encolhe afundando nele por 0.5s até o tamanho de um rabbit e só
-		-- então desaparece; logo depois o buraco some e os montinhos de terra
-		-- começam.
+		-- que encolhe afundando nele; nos últimos 0.3s ela dá lugar a um coelho
+		-- (a "transformação"), que continua a descida até desaparecer. Logo
+		-- depois o buraco some e os montinhos de terra começam. O total continua
+		-- sendo ENTER_TIME + HOLE_FADE_TIME.
+		local x, y, z = inst.Transform:GetWorldPosition()
 		inst.burrowdash_holefx = SpawnPrefab("wunny_burrowdash_fx")
-		inst.burrowdash_holefx.Transform:SetPosition(inst.Transform:GetWorldPosition())
+		inst.burrowdash_holefx.Transform:SetPosition(x, y, z)
 		inst.SoundEmitter:PlaySound("dontstarve_DLC001/creatures/mole/emerge")
 
+		-- Fase 1: a Wunny encolhe do tamanho normal até o de coelho.
 		local shrink_start = GetTime()
-		inst.burrowdash_shrink_task = inst:DoPeriodicTask(FRAMES, function(inst)
-			local k = math.min(1, (GetTime() - shrink_start) / WUNNY_BURROWDASH_ENTER_TIME)
+		local function ShrinkTick(inst)
+			local elapsed = GetTime() - shrink_start
+			local k, target
+			if inst.burrowdash_rabbitfx ~= nil then
+				-- Fase 2: o coelho começa no tamanho natural dele e afunda.
+				k = math.min(1, (elapsed - WUNNY_BURROWDASH_WUNNY_TIME) / WUNNY_BURROWDASH_RABBIT_TIME)
+				target = inst.burrowdash_rabbitfx
+			else
+				k = math.min(1, elapsed / WUNNY_BURROWDASH_WUNNY_TIME)
+				target = inst
+			end
 			local scale = 1 - k * (1 - WUNNY_BURROWDASH_MIN_SCALE)
-			inst.Transform:SetScale(scale, scale, scale)
+			target.Transform:SetScale(scale, scale, scale)
+		end
+		inst.burrowdash_shrink_task = inst:DoPeriodicTask(FRAMES, ShrinkTick)
+
+		-- Troca da aparência: a Wunny some e o coelho aparece no lugar dela,
+		-- virado pro mesmo lado.
+		inst.burrowdash_swap_task = inst:DoTaskInTime(WUNNY_BURROWDASH_WUNNY_TIME, function(inst)
+			inst.burrowdash_swap_task = nil
+			inst.AnimState:SetMultColour(1, 1, 1, 0)
+			-- Sumiu da tela, então sai da mira dos bichos.
+			SetBurrowDashNoTarget(inst, true)
+			-- Volta ao tamanho normal já invisível, pra ela não reaparecer
+			-- encolhida quando a toca for desligada.
+			inst.Transform:SetScale(1, 1, 1)
+
+			inst.burrowdash_rabbitfx = SpawnPrefab("wunny_burrowdash_rabbit_fx")
+			inst.burrowdash_rabbitfx.Transform:SetPosition(inst.Transform:GetWorldPosition())
+			inst.burrowdash_rabbitfx.Transform:SetRotation(inst.Transform:GetRotation())
 		end)
 
 		inst.burrowdash_enter_task = inst:DoTaskInTime(WUNNY_BURROWDASH_ENTER_TIME, function(inst)
@@ -2590,14 +2776,13 @@ local master_postinit = function(inst)
 				inst.burrowdash_shrink_task:Cancel()
 				inst.burrowdash_shrink_task = nil
 			end
-			inst.AnimState:SetMultColour(1, 1, 1, 0)
-			-- Volta ao tamanho normal já invisível, pra ela não reaparecer
-			-- encolhida quando a toca for desligada.
-			inst.Transform:SetScale(1, 1, 1)
+			RemoveBurrowDashRabbitFX(inst)
 
 			inst.burrowdash_hidehole_task = inst:DoTaskInTime(WUNNY_BURROWDASH_HOLE_FADE_TIME, function(inst)
 				inst.burrowdash_hidehole_task = nil
 				RemoveBurrowDashHoleFX(inst)
+				-- Animação concluída: devolve o controle.
+				SetBurrowDashLocked(inst, false)
 
 				inst.burrowdash_task = inst:DoPeriodicTask(0.3, function()
 					local x, y, z = inst.Transform:GetWorldPosition()
@@ -2608,16 +2793,21 @@ local master_postinit = function(inst)
 	end
 
 	inst.ToggleBurrowDash = function(inst)
-		if inst.is_burrowdashing then
-			StopBurrowDash(inst)
+		if inst.burrowdash_exiting then
+			-- Já está saindo: ignora o toggle pra não reiniciar a coreografia.
+			return
+		elseif inst.is_burrowdashing then
+			StartBurrowDashExit(inst)
 		else
 			StartBurrowDash(inst)
 		end
 	end
 
-	inst:ListenForEvent("attacked", function(inst) StopBurrowDash(inst) end)
-	inst:ListenForEvent("death", function(inst) StopBurrowDash(inst) end)
-	inst:ListenForEvent("onremove", function(inst) StopBurrowDash(inst) end)
+	-- Interrupções à força cortam a animação: não faz sentido gastar 0.7s de saída
+	-- coreografada com ela tomando dano ou morrendo.
+	inst:ListenForEvent("attacked", function(inst) AbortBurrowDash(inst) end)
+	inst:ListenForEvent("death", function(inst) AbortBurrowDash(inst) end)
+	inst:ListenForEvent("onremove", function(inst) AbortBurrowDash(inst) end)
 
 	-- Stats
 	inst.components.health:SetMaxHealth(TUNING.WUNNY_HEALTH)
