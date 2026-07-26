@@ -25,9 +25,11 @@ local function fn()
 	inst.AnimState:SetBank("rabbithole")
 	inst.AnimState:SetBuild("rabbit_hole")
 	inst.AnimState:PlayAnimation("idle")
-	-- Fica atrás da Wunny: ela ainda está visível cavando em cima do buraco.
-	inst.AnimState:SetLayer(LAYER_BACKGROUND)
-	inst.AnimState:SetSortOrder(3)
+	-- Desenhado NA FRENTE da Wunny, não atrás: assim a borda do buraco cobre a
+	-- parte de baixo dela e a leitura é de que ela está afundando dentro dele.
+	-- Atrás só funcionava com ela de costas — de frente o buraco aparecia
+	-- inteiro flutuando acima dos pés dela.
+	inst.AnimState:SetFinalOffset(1)
 
 	inst.persists = false
 

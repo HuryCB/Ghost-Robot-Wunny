@@ -2505,6 +2505,9 @@ local master_postinit = function(inst)
 	-- montinhos de terra.
 	local WUNNY_BURROWDASH_ENTER_TIME = 0.5
 	local WUNNY_BURROWDASH_HOLE_FADE_TIME = 0.2
+	-- Tamanho em que ela desaparece dentro do buraco, mais ou menos o de um
+	-- rabbit.
+	local WUNNY_BURROWDASH_MIN_SCALE = 0.5
 
 	local function RemoveBurrowDashHoleFX(inst)
 		if inst.burrowdash_holefx ~= nil then
@@ -2538,7 +2541,12 @@ local master_postinit = function(inst)
 			inst.burrowdash_hidehole_task:Cancel()
 			inst.burrowdash_hidehole_task = nil
 		end
+		if inst.burrowdash_shrink_task ~= nil then
+			inst.burrowdash_shrink_task:Cancel()
+			inst.burrowdash_shrink_task = nil
+		end
 		RemoveBurrowDashHoleFX(inst)
+		inst.Transform:SetScale(1, 1, 1)
 		inst.AnimState:SetMultColour(1, 1, 1, 1)
 		inst:PushEvent("locomote")
 	end
@@ -2561,16 +2569,31 @@ local master_postinit = function(inst)
 		end
 		inst:PushEvent("locomote")
 
-		-- Encadeamento visual da entrada na toca: o buraco aparece sob a Wunny
-		-- (ela continua visível "cavando"), 0.5s depois ela desaparece dentro
-		-- dele, e só então o buraco some e os montinhos de terra começam.
+		-- Encadeamento visual da entrada na toca: o buraco aparece sob a Wunny,
+		-- que encolhe afundando nele por 0.5s até o tamanho de um rabbit e só
+		-- então desaparece; logo depois o buraco some e os montinhos de terra
+		-- começam.
 		inst.burrowdash_holefx = SpawnPrefab("wunny_burrowdash_fx")
 		inst.burrowdash_holefx.Transform:SetPosition(inst.Transform:GetWorldPosition())
 		inst.SoundEmitter:PlaySound("dontstarve_DLC001/creatures/mole/emerge")
 
+		local shrink_start = GetTime()
+		inst.burrowdash_shrink_task = inst:DoPeriodicTask(FRAMES, function(inst)
+			local k = math.min(1, (GetTime() - shrink_start) / WUNNY_BURROWDASH_ENTER_TIME)
+			local scale = 1 - k * (1 - WUNNY_BURROWDASH_MIN_SCALE)
+			inst.Transform:SetScale(scale, scale, scale)
+		end)
+
 		inst.burrowdash_enter_task = inst:DoTaskInTime(WUNNY_BURROWDASH_ENTER_TIME, function(inst)
 			inst.burrowdash_enter_task = nil
+			if inst.burrowdash_shrink_task ~= nil then
+				inst.burrowdash_shrink_task:Cancel()
+				inst.burrowdash_shrink_task = nil
+			end
 			inst.AnimState:SetMultColour(1, 1, 1, 0)
+			-- Volta ao tamanho normal já invisível, pra ela não reaparecer
+			-- encolhida quando a toca for desligada.
+			inst.Transform:SetScale(1, 1, 1)
 
 			inst.burrowdash_hidehole_task = inst:DoTaskInTime(WUNNY_BURROWDASH_HOLE_FADE_TIME, function(inst)
 				inst.burrowdash_hidehole_task = nil
