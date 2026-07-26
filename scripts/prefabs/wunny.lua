@@ -15,6 +15,13 @@ local assets = {
 	Asset("ANIM", "anim/wortox_portal.zip"),
 	Asset("ANIM", "anim/wortox_soul_ball.zip"),
 	Asset("SOUND", "sound/wortox.fsb"),
+	--Wilson (skill "wilson_beard_7"): banks da UI do container da barba-mochila
+	--(containers.lua params.beard_sack_N.widget.animbank). O beard_sack.lua não
+	--declara estes zips — quem os carrega é o wilson.lua, então a Wunny precisa
+	--declarar por conta própria ou o container abre sem arte.
+	Asset("ANIM", "anim/ui_beard_1x1.zip"),
+	Asset("ANIM", "anim/ui_beard_2x1.zip"),
+	Asset("ANIM", "anim/ui_beard_3x1.zip"),
 }
 
 local prefabsItens = {
@@ -180,6 +187,11 @@ local prefabs = {
 	"wortox_soul_heal_fx",
 	--Burrow dash (mole, terra se movendo)
 	"mole_move_fx",
+	--Wilson (skill "wilson_beard_7"): mochilas de barba equipadas em
+	--EQUIPSLOTS.BEARD conforme o tamanho da barba (ver Wilson_UpdateBeardInventory).
+	"beard_sack_1",
+	"beard_sack_2",
+	"beard_sack_3",
 }
 
 local WX78ModuleDefinitionFile = require("wx78_moduledefs")
@@ -1063,6 +1075,33 @@ local function Wortox_GetPointSpecialActions(inst, pos, useitem, right)
 			end
 		end
 	end
+
+	-- Wilson (skill "wilson_torch_7"): arremessar a tocha acesa. Porte de
+	-- wilson.lua:GetPointSpecialActions.
+	--
+	-- Fica FORA do "if right and useitem == nil" acima de propósito: o toss
+	-- exige justamente um useitem (a tocha equipada na mão), enquanto todas as
+	-- ações do Wortox/wx78 acima exigem useitem == nil. Como o
+	-- playeractionpicker só aceita UM pointspecialactionsfn, e a Wunny já usa
+	-- esse slot pro Wortox (ver Wortox_OnSetOwner), as duas famílias de ação
+	-- têm que conviver na mesma função em vez de ter uma fn própria.
+	if right then
+		if useitem == nil then
+			local inventory = inst.replica.inventory
+			if inventory ~= nil then
+				useitem = inventory:GetEquippedItem(EQUIPSLOTS.HANDS)
+			end
+		end
+		if useitem ~= nil and
+			useitem.prefab == "torch" and
+			inst.components.skilltreeupdater ~= nil and
+			inst.components.skilltreeupdater:IsActivated("wilson_torch_7") and
+			useitem:HasTag("special_action_toss")
+		then
+			table.insert(actions, ACTIONS.TOSS)
+		end
+	end
+
 	return actions
 end
 
@@ -1367,6 +1406,80 @@ local function Wolfgang_GetCurrentMightinessState(inst)
 	end
 end
 
+----------------------------------------------------------------------------------------
+-- Wilson: skills concedidas de forma permanente.
+--
+-- Nenhuma destas skills tem `onactivate` (só as duas de allegiance e a beard_7
+-- têm), então WunnySkillTree.ApplyAllSkillTreeEffects não faz nada por elas — o
+-- efeito inteiro vive em checagens de IsActivated espalhadas pelo jogo, que é
+-- justamente o que esta whitelist atende:
+--   torch_1..3    -> prefabs/torch.lua getskillfueleffectmodifier (tocha dura mais)
+--   torch_4..6    -> prefabs/torch.lua getskillbrightnesseffectmodifier (raio de luz)
+--   torch_7       -> ação TOSS (ver Wortox_GetPointSpecialActions)
+--   beard_1..3    -> components/beard.lua GetInsulation (isolamento térmico)
+--   beard_4..6    -> components/beard.lua OnDayComplete (barba cresce mais rápido)
+--   beard_7       -> components/beard.lua UpdateBeardInventory (barba-mochila)
+--   alchemy_1..10 -> components/builder.lua (builder_skill das receitas transmute_*)
+--
+-- As duas de allegiance liberam transmute_horrorfuel/dreadstone/nightmarefuel
+-- (shadow) e transmute_purebrilliance/moonglass_charged (lunar). Ficam as duas
+-- ligadas, seguindo o que o mod já faz com wx78_allegiance_lunar/shadow: no
+-- vanilla elas são exclusivas, aqui a Wunny acumula as duas de propósito.
+--
+-- Ao contrário da whitelist do wx78 (instalada no master_postinit), esta é
+-- instalada no common_postinit porque o menu de crafting é filtrado NO CLIENTE:
+-- builder_replica.lua:312 também chama skilltreeupdater:IsActivated(builder_skill).
+-- Sem o override no cliente, as ~24 receitas transmute_* simplesmente não
+-- apareceriam na aba da Wunny, mesmo o servidor aceitando construí-las.
+----------------------------------------------------------------------------------------
+
+local WILSON_SKILLS_ALWAYSON = {
+	-- Torch
+	wilson_torch_1 = true,
+	wilson_torch_2 = true,
+	wilson_torch_3 = true,
+	wilson_torch_4 = true,
+	wilson_torch_5 = true,
+	wilson_torch_6 = true,
+	wilson_torch_7 = true,
+	-- Beard
+	wilson_beard_1 = true,
+	wilson_beard_2 = true,
+	wilson_beard_3 = true,
+	wilson_beard_4 = true,
+	wilson_beard_5 = true,
+	wilson_beard_6 = true,
+	wilson_beard_7 = true,
+	-- Alchemy (transmutação)
+	wilson_alchemy_1 = true,
+	wilson_alchemy_2 = true,
+	wilson_alchemy_3 = true,
+	wilson_alchemy_4 = true,
+	wilson_alchemy_5 = true,
+	wilson_alchemy_6 = true,
+	wilson_alchemy_7 = true,
+	wilson_alchemy_8 = true,
+	wilson_alchemy_9 = true,
+	wilson_alchemy_10 = true,
+	-- Allegiance
+	wilson_allegiance_shadow = true,
+	wilson_allegiance_lunar = true,
+}
+
+local function Wilson_InstallSkillWhitelist(inst)
+	local skilltreeupdater = inst.components.skilltreeupdater
+	if skilltreeupdater == nil then
+		return
+	end
+	local IsActivated_prev = skilltreeupdater.IsActivated
+	function skilltreeupdater:IsActivated(skill, ...)
+		if WILSON_SKILLS_ALWAYSON[skill] then
+			return true
+		end
+		return IsActivated_prev(self, skill, ...)
+	end
+end
+
 -- This initializes for both the server and client. Tags can be added here.
 local common_postinit = function(inst)
 	-- Minimap icon
@@ -1512,6 +1625,10 @@ local common_postinit = function(inst)
 	-- direto (sem checagem de nil), então precisa existir mesmo sem Wunny
 	-- ter nenhuma habilidade com cooldown própria ainda
 	inst:AddComponent("wx78_abilitycooldowns")
+
+	-- Wilson: server + client (ver comentário em WILSON_SKILLS_ALWAYSON — o
+	-- filtro do menu de crafting roda no cliente).
+	Wilson_InstallSkillWhitelist(inst)
 
 	--double loot
 	inst:ListenForEvent("killed", function(inst, data)
@@ -1961,6 +2078,68 @@ local function OnGrowLongBeard(inst, skinname)
 		inst.AnimState:OverrideSkinSymbol("beard", skinname, "beard_long")
 	end
 	inst.components.beard.bits = BEARD_BITS[3]
+end
+
+----------------------------------------------------------------------------------------
+-- Wilson (skill "wilson_beard_7"): a barba vira mochila (EQUIPSLOTS.BEARD).
+----------------------------------------------------------------------------------------
+
+-- Substitui Beard:UpdateBeardInventory (components/beard.lua). O original
+-- compara self.bits contra TUNING.WILSON_BEARD_BITS = {1, 3, 9}, mas a barba da
+-- Wunny usa BEARD_BITS = {1, 3, 6} — no talo ela tem 6 bits, que é >= 3 e < 9,
+-- então a versão vanilla travaria a Wunny na beard_sack_2 e a beard_sack_3
+-- ficaria inalcançável. Aqui os cortes seguem os bits da própria Wunny.
+-- O resto (transferir itens ao trocar de nível, dropar tudo ao perder a barba) é
+-- igual ao vanilla.
+local function Wilson_UpdateBeardInventory(self)
+	local level = nil
+
+	if self.inst.components.skilltreeupdater ~= nil and
+		self.inst.components.skilltreeupdater:IsActivated("wilson_beard_7")
+	then
+		if self.bits >= BEARD_BITS[3] then
+			level = "beard_sack_3"
+		elseif self.bits >= BEARD_BITS[2] then
+			level = "beard_sack_2"
+		elseif self.bits >= BEARD_BITS[1] then
+			level = "beard_sack_1"
+		end
+	end
+
+	local inventory = self.inst.components.inventory
+	local beardsack = inventory ~= nil and inventory:GetEquippedItem(EQUIPSLOTS.BEARD) or nil
+
+	if level ~= nil then
+		if beardsack == nil then
+			inventory:Equip(SpawnPrefab(level))
+		elseif not beardsack:HasTag(level) then
+			-- Nível mudou: move os itens da mochila antiga pra nova.
+			local bearditems = beardsack.components.container:RemoveAllItems()
+			beardsack.components.container:Close(self.inst)
+			beardsack:Remove()
+			local newsack = SpawnPrefab(level)
+			inventory:Equip(newsack)
+			for slot, item in ipairs(bearditems) do
+				newsack.components.container:GiveItem(item, slot, nil, true)
+			end
+		end
+	elseif beardsack ~= nil then
+		beardsack.components.container:DropEverything()
+		beardsack:Remove()
+	end
+end
+
+-- Sem isto os itens guardados na barba somem junto com a mochila ao morrer
+-- (a barba é resetada em "ms_respawnedfromghost"). Mesmo listener do
+-- wilson.lua:EmptyBeard.
+local function Wilson_EmptyBeard(inst)
+	local beard_sack = inst.components.inventory ~= nil
+		and inst.components.inventory:GetEquippedItem(EQUIPSLOTS.BEARD)
+		or nil
+	if beard_sack ~= nil then
+		beard_sack.components.container:DropEverything()
+		beard_sack:Remove()
+	end
 end
 
 local SANITYFN_FIRE_TAGS = { "fire" }
@@ -2424,6 +2603,13 @@ local master_postinit = function(inst)
 	inst.components.beard:AddCallback(BEARD_DAYS[1], OnGrowShortBeard)
 	inst.components.beard:AddCallback(BEARD_DAYS[2], OnGrowMediumBeard)
 	inst.components.beard:AddCallback(BEARD_DAYS[3], OnGrowLongBeard)
+
+	-- Wilson (skill "wilson_beard_7"): barba-mochila. O método é trocado na
+	-- instância (não na classe Beard) pra não afetar o Wilson/Webber de verdade
+	-- num servidor com vários personagens.
+	inst.components.beard.UpdateBeardInventory = Wilson_UpdateBeardInventory
+	inst.EmptyBeard = Wilson_EmptyBeard
+	inst:ListenForEvent("death", Wilson_EmptyBeard)
 
 	inst.components.combat:SetAttackPeriod(TUNING.WILSON_ATTACK_PERIOD)
 	inst.soundsname = "willow"
