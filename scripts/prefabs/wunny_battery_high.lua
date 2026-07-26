@@ -97,6 +97,37 @@ local function StopBattery(inst)
     end
 end
 
+--------------------------------------------------------------------------
+-- Skill tree da Winona: battery_idledrain e battery_efficiency_1/2/3.
+-- Idêntico ao bloco de wunny_battery_low.lua — ver os comentários lá, inclusive
+-- a ressalva sobre o idledrain (sem o componente powerload nas cópias wunny_*,
+-- a skill cobre só a remoção do piso WINONA_BATTERY_MIN_LOAD).
+--------------------------------------------------------------------------
+
+local function CalcEfficiencyMult(inst, override)
+    return TUNING.SKILLS.WINONA.BATTERY_EFFICIENCY_RATE_MULT[override or inst._efficiency] or 1
+end
+
+local function ConfigureSkillTreeUpgrades(inst, builder)
+    local skilltreeupdater = builder ~= nil and builder.components.skilltreeupdater or nil
+
+    local noidledrain = skilltreeupdater ~= nil and skilltreeupdater:IsActivated("winona_battery_idledrain")
+
+    local efficiency = skilltreeupdater and
+        (   (skilltreeupdater:IsActivated("winona_battery_efficiency_3") and 3) or
+            (skilltreeupdater:IsActivated("winona_battery_efficiency_2") and 2) or
+            (skilltreeupdater:IsActivated("winona_battery_efficiency_1") and 1)
+        ) or 0
+
+    local dirty = inst._noidledrain ~= noidledrain or inst._efficiency ~= efficiency
+
+    inst._noidledrain = noidledrain
+    inst._efficiency = efficiency
+    inst._builderid = builder ~= nil and builder.userid or nil
+
+    return dirty
+end
+
 local function UpdateCircuitPower(inst)
     inst._circuittask = nil
     if inst.components.fueled ~= nil then
@@ -111,7 +142,9 @@ local function UpdateCircuitPower(inst)
                 end)
                 load = load + 1 / batteries
             end)
-            inst.components.fueled.rate = math.max(load, TUNING.WINONA_BATTERY_MIN_LOAD)
+            inst.components.fueled.rate =
+                (inst._noidledrain and load or math.max(load, TUNING.WINONA_BATTERY_MIN_LOAD)) *
+                CalcEfficiencyMult(inst)
         else
             inst.components.fueled.rate = 0
         end
@@ -357,10 +390,17 @@ end
 local function OnSave(inst, data)
     data.burnt = inst.components.burnable ~= nil and inst.components.burnable:IsBurning() or inst:HasTag("burnt") or nil
     data.gems = #inst._gems > 0 and inst._gems or nil
+    --Skills da Winona: níveis do construtor, têm que sobreviver ao save.
+    data.noidledrain = inst._noidledrain or nil
+    data.efficiency = inst._efficiency > 0 and inst._efficiency or nil
+    data.builderid = inst._builderid
 end
 
 local function OnLoad(inst, data, ents)
     if data ~= nil then
+        inst._noidledrain = data.noidledrain or false
+        inst._efficiency = data.efficiency or 0
+        inst._builderid = data.builderid
         if data.gems ~= nil and #inst._gems < GEMSLOTS then
             for i, v in ipairs(data.gems) do
                 table.insert(inst._gems, v)
@@ -416,11 +456,12 @@ local function OnBuilt2(inst)
     end
 end
 
-local function OnBuilt(inst) --, data)
+local function OnBuilt(inst, data)
     if inst._inittask ~= nil then
         inst._inittask:Cancel()
         inst._inittask = nil
     end
+    ConfigureSkillTreeUpgrades(inst, data ~= nil and data.builder or nil)
     inst.components.circuitnode:Disconnect()
     inst:ListenForEvent("animover", OnBuilt3)
     inst.AnimState:PlayAnimation("place")
@@ -711,6 +752,21 @@ local function fn()
     inst:AddComponent("battery")
     inst.components.battery.canbeused = CanBeUsedAsBattery
     inst.components.battery.onused = UseAsBattery
+
+    --Skills da Winona (ver o bloco ConfigureSkillTreeUpgrades acima).
+    inst._noidledrain = false
+    inst._efficiency = 0
+    inst._builderid = nil
+
+    inst:ListenForEvent("winona_batteryskillchanged", function(world, user)
+        if user ~= nil and not inst:HasTag("burnt") and
+            (user.userid == inst._builderid or (inst._builderid == nil and user:HasTag("wunny")))
+        then
+            if ConfigureSkillTreeUpgrades(inst, user) then
+                OnCircuitChanged(inst)
+            end
+        end
+    end, TheWorld)
 
     inst:ListenForEvent("onbuilt", OnBuilt)
     inst:ListenForEvent("ondeconstructstructure", DropGems)

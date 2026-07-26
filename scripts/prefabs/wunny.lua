@@ -29,6 +29,10 @@ local assets = {
 	--conjuraria sem animação nenhuma.
 	Asset("ANIM", "anim/willow_pyrocast.zip"),
 	Asset("ANIM", "anim/willow_mount_pyrocast.zip"),
+
+	--Winona (skill "winona_charlie_1"): marcador de minimapa usado pelo componente
+	--roseinspectableuser. É carregado pelo winona.lua com este mesmo comentário.
+	Asset("ANIM", "anim/roseglasses_minimap_indicator.zip"),
 }
 
 local prefabsItens = {
@@ -206,6 +210,14 @@ local prefabs = {
 	--dela — por isso o willow.lua também declara essa à parte, e nós também.
 	"willow_ember",
 	"emberlight",
+	--Winona: "inspectaclesbox"/"inspectaclesbox2" saem do componente
+	--inspectaclesparticipant (skill wagstaff_1/2); os outros três saem do
+	--roseinspectableuser (skill charlie_1).
+	"inspectaclesbox",
+	"inspectaclesbox2",
+	"charlieresidue",
+	"flower_rose",
+	"rose_petals_fx",
 }
 
 local WX78ModuleDefinitionFile = require("wx78_moduledefs")
@@ -1037,7 +1049,38 @@ local function Wortox_CanBlinkFromWithMap(inst, pt)
 	return IsTeleportingPermittedFromPointToPoint(x, y, z, pt.x, pt.y, pt.z)
 end
 
+----------------------------------------------------------------------------------------
+-- Winona (skill "winona_charlie_1"): mira do close-inspect dos óculos rosados.
+--
+-- Porte de winona.lua:ReticuleTargetFn. Procura, de fora pra dentro, o ponto mais
+-- distante à frente da Wunny que ainda seja inspecionável; se nenhum servir,
+-- devolve a posição dela mesma (é o que o vanilla faz).
+----------------------------------------------------------------------------------------
+local function Winona_ReticuleTargetFn(inst)
+	local pos = Vector3()
+	for r = 2.5, 1, -.25 do
+		pos.x, pos.y, pos.z = inst.entity:LocalToWorldSpace(r, 0, 0)
+		if CLOSEINSPECTORUTIL.IsValidPos(inst, pos) then
+			return pos
+		end
+	end
+	pos.x, pos.y, pos.z = inst.Transform:GetWorldPosition()
+	return pos
+end
+
+--Wunny está usando os óculos rosados no modo close-inspect? Nesse caso a mira
+--tem que ser a da Winona, não a de teleporte do Wortox — o componente reticule
+--do jogador só tem UM targetfn.
+local function Winona_IsCloseInspecting(inst)
+	local inventory = inst.replica.inventory
+	local hat = inventory ~= nil and inventory:GetEquippedItem(EQUIPSLOTS.HEAD) or nil
+	return hat ~= nil and hat.prefab == "roseglasseshat" and hat:HasTag("closeinspector")
+end
+
 local function Wortox_ReticuleTargetFn(inst)
+	if Winona_IsCloseInspecting(inst) then
+		return Winona_ReticuleTargetFn(inst)
+	end
 	return ControllerReticle_Blink_GetPosition(inst, Wortox_IsNotBlocked)
 end
 
@@ -1051,8 +1094,12 @@ local function Wortox_CanSoulhop(inst, souls)
 	return false
 end
 
-local function Wortox_GetPointSpecialActions(inst, pos, useitem, right)
+local function Wortox_GetPointSpecialActions(inst, pos, useitem, right, usereticulepos)
 	local actions = {}
+	-- O bloco da tocha do Wilson mais abaixo sobrescreve `useitem` com o item da
+	-- mão quando ele vem nil; o bloco dos óculos rosados da Winona (depois dele)
+	-- precisa do valor ORIGINAL pra decidir se pode olhar o slot da cabeça.
+	local orig_useitem = useitem
 	if right and useitem == nil then
 		if inst.checkingmapactions then
 			local canblink = inst:CanBlinkFromWithMap(inst.checkingmapactions_pos or inst:GetPosition())
@@ -1113,6 +1160,40 @@ local function Wortox_GetPointSpecialActions(inst, pos, useitem, right)
 			useitem:HasTag("special_action_toss")
 		then
 			table.insert(actions, ACTIONS.TOSS)
+		end
+	end
+
+	-- Winona (skill "winona_charlie_1"): inspecionar um ponto do chão com os óculos
+	-- rosados. Porte de winona.lua:GetPointSpecialActions.
+	--
+	-- Mesmo motivo do toss da tocha acima pra estar aqui dentro: só existe um
+	-- pointspecialactionsfn por jogador. Este é o único caso que devolve o segundo
+	-- retorno (pos2) — playeractionpicker.lua:230 já aceita, e as famílias
+	-- anteriores continuam devolvendo só a lista.
+	if right then
+		local hat = orig_useitem
+		if hat == nil then
+			local inventory = inst.replica.inventory
+			if inventory ~= nil then
+				hat = inventory:GetEquippedItem(EQUIPSLOTS.HEAD)
+			end
+		end
+		if hat ~= nil and hat.prefab == "roseglasseshat" and hat:HasTag("closeinspector") then
+			--tem que casar com Winona_ReticuleTargetFn acima
+			if usereticulepos then
+				local pos2 = Vector3()
+				for r = 2.5, 1, -.25 do
+					pos2.x, pos2.y, pos2.z = inst.entity:LocalToWorldSpace(r, 0, 0)
+					if CLOSEINSPECTORUTIL.IsValidPos(inst, pos2) then
+						table.insert(actions, ACTIONS.LOOKAT)
+						return actions, pos2
+					end
+				end
+			end
+
+			if CLOSEINSPECTORUTIL.IsValidPos(inst, pos) then
+				table.insert(actions, ACTIONS.LOOKAT)
+			end
 		end
 	end
 
@@ -1543,6 +1624,96 @@ local WILLOW_SKILLS_ALWAYSON = {
 	willow_burnignbernie = true,
 }
 
+----------------------------------------------------------------------------------------
+-- Winona: mesma ideia das duas tabelas acima. As skills dela quase todas leem
+-- skilltreeupdater DO CONSTRUTOR de uma estrutura de engenharia, não do próprio
+-- jogador — cada estrutura chama ConfigureSkillTreeUpgrades(inst, builder) na
+-- hora em que é montada e guarda o nível resultante em campos próprios.
+--
+-- Onde o vanilla lê cada uma:
+--   spotlight_heated   -> prefabs/winona_spotlight.lua ConfigureSkillTreeUpgrades
+--                         (holofote aquece quem está no facho no inverno)
+--   spotlight_range    -> idem (raio/alcance maiores: SPOTLIGHT_*2 em TUNING)
+--   portable_structures-> tag "portableengineer" (onactivate; JÁ aplicada por
+--                         WunnySkillTree.ApplyAllSkillTreeEffects) -> libera as
+--                         receitas winona_*_item e o winona_remote em recipes.lua
+--   gadget_recharge    -> prefabs/winona_remote.lua / winona_storage_robot.lua /
+--                         winona_telebrella.lua (recarrega mais rápido)
+--   battery_idledrain  -> prefabs/winona_battery_low|high.lua UpdateCircuitPower
+--                         (baterias não gastam combustível com carga ociosa)
+--   battery_efficiency_1/2/3 -> idem + CalcActualFuel (combustível dura +25/50/100%)
+--   catapult_speed_1/2/3     -> prefabs/winona_catapult.lua RefreshAttackPeriod
+--   catapult_aoe_1/2/3       -> idem (AOE_RADIUS) + SGwinona_catapult.lua
+--   catapult_volley_1  -> prefabs/winona_remote.lua (magia de salva pelo controle)
+--   catapult_boost_1   -> idem (magia de acelerar catapultas)
+--   charlie_1          -> receita roseglasseshat (builder_skill) + prefabs/hats.lua
+--                         roseglasses_refreshattunedskills (componente closeinspector)
+--   charlie_2          -> imunidade a escuridão (onactivate, JÁ aplicada) +
+--                         wormhole.lua / tentacle_pillar_hole.lua / flower.lua
+--                         (rastrear buracos de verme, colher flores rosadas)
+--   shadow_1/2         -> prefabs/winona_battery_low.lua (abastecer com nightmarefuel
+--                         e horrorfuel)
+--   shadow_3           -> prefabs/winona_catapult.lua / winona_remote.lua
+--                         (munição de sombra e salva elemental)
+--   lunar_1/2          -> prefabs/winona_battery_high.lua (abastecer com
+--                         purebrilliance / lunarplant_husk)
+--   lunar_3            -> munição lunar, mesmos arquivos do shadow_3
+--   wagstaff_1         -> tag "inspectacleshatuser" (onactivate, JÁ aplicada) +
+--                         receitas inspectacleshat e winona_storage_robot
+--   wagstaff_2         -> receitas winona_telebrella e winona_teleport_pad_item +
+--                         components/inspectaclesparticipant.lua (caixa melhorada)
+--
+-- Os nós "lock" (winona_lowshelf_lock, winona_midshelf_lock, winona_portable_
+-- structures_lock, winona_charlie_2_lock, winona_wagstaff_2_lock, winona_shadow_3_
+-- lock, winona_lunar_3_lock) não entram: são só travas da UI da árvore.
+--
+-- Ao contrário da Willow, aqui as skills de aliança ENTRAM — segue o mesmo
+-- critério já usado pra WX78 em master_postinit, que também libera as duas
+-- alianças de uma vez. No vanilla charlie_2 e wagstaff_2 se travam mutuamente
+-- (ver lock_open em skilltree_winona.lua); a Wunny fica com as duas.
+--
+-- A tag "handyperson" continua comentada em common_postinit de propósito (a Wunny
+-- tem as cópias wunny_* das estruturas, com tag de construtor "wunny"). O efeito
+-- colateral é que `_engineerid` fica nil nas estruturas vanilla: elas funcionam e
+-- recebem os bônus de skill normalmente, só não creditam abates à Wunny nem usam
+-- o tempo de "sono" mais longo reservado à engenheira. Os NÍVEIS de skill vêm do
+-- construtor independentemente dessa tag.
+----------------------------------------------------------------------------------------
+
+local WINONA_SKILLS_ALWAYSON = {
+	-- Prateleira de baixo
+	winona_spotlight_heated = true,
+	winona_spotlight_range = true,
+	winona_portable_structures = true,
+	winona_gadget_recharge = true,
+	winona_battery_idledrain = true,
+	-- Prateleira do meio: catapulta
+	winona_catapult_speed_1 = true,
+	winona_catapult_speed_2 = true,
+	winona_catapult_speed_3 = true,
+	winona_catapult_aoe_1 = true,
+	winona_catapult_aoe_2 = true,
+	winona_catapult_aoe_3 = true,
+	winona_catapult_volley_1 = true,
+	winona_catapult_boost_1 = true,
+	-- Prateleira do meio: baterias
+	winona_battery_efficiency_1 = true,
+	winona_battery_efficiency_2 = true,
+	winona_battery_efficiency_3 = true,
+	-- Aliança sombria (Charlie)
+	winona_charlie_1 = true,
+	winona_charlie_2 = true,
+	winona_shadow_1 = true,
+	winona_shadow_2 = true,
+	winona_shadow_3 = true,
+	-- Aliança lunar (Wagstaff)
+	winona_wagstaff_1 = true,
+	winona_wagstaff_2 = true,
+	winona_lunar_1 = true,
+	winona_lunar_2 = true,
+	winona_lunar_3 = true,
+}
+
 local function Wunny_InstallSkillWhitelist(inst, skills)
 	local skilltreeupdater = inst.components.skilltreeupdater
 	if skilltreeupdater == nil then
@@ -1795,6 +1966,18 @@ local common_postinit = function(inst)
 	-- topocket no servidor quanto por DoClientUpdateSpells no cliente), então sem
 	-- o override no cliente a roda de magias abriria vazia.
 	Wunny_InstallSkillWhitelist(inst, WILLOW_SKILLS_ALWAYSON)
+	-- Winona: cliente também. As estruturas de engenharia guardam os níveis de
+	-- skill em net_vars e reaplicam os bônus visuais no cliente (ex.:
+	-- winona_spotlight.lua ApplySkillBonuses ajusta o raio da luz nos dois lados),
+	-- e o filtro de receitas por builder_skill (roseglasseshat, inspectacleshat,
+	-- winona_telebrella...) roda em builder_replica.lua.
+	Wunny_InstallSkillWhitelist(inst, WINONA_SKILLS_ALWAYSON)
+
+	-- Winona (skills "winona_wagstaff_1"/"winona_wagstaff_2"): o inspectacleshat
+	-- depende deste componente no dono pra criar/melhorar a caixa de peças. Vem em
+	-- common_postinit igual no winona.lua — hats.lua consulta
+	-- owner.components.inspectaclesparticipant no cliente também (refreshicon).
+	inst:AddComponent("inspectaclesparticipant")
 
 	--double loot
 	inst:ListenForEvent("killed", function(inst, data)
@@ -3638,7 +3821,31 @@ local master_postinit = function(inst)
 		return skilltreeupdater_IsActivated_prev(self, skill, ...)
 	end
 
+	--Winona (skill "winona_charlie_1"): os óculos rosados delegam a inspeção pra
+	--este componente do dono (hats.lua roseglasses_inspectpoint/inspecttarget).
+	--Sem ele o item equipa mas não inspeciona nada.
+	inst:AddComponent("roseinspectableuser")
+
 	WunnySkillTree.ApplyAllSkillTreeEffects(inst)
+
+	--Winona: as estruturas de engenharia só releem as skills do construtor quando
+	--são montadas ou quando um destes eventos passa pelo mundo (ver os
+	--ListenForEvent em winona_catapult.lua / winona_spotlight.lua /
+	--winona_battery_*.lua, e as cópias wunny_* deste mod). Como as skills da Wunny
+	--são concedidas aqui, de uma vez, e não pela UI da árvore, ninguém dispara
+	--"onactivateskill_server" por ela — sem estes pushes as estruturas que já
+	--existiam num save antigo continuariam sem bônus até serem reconstruídas.
+	--
+	--Em DoTaskInTime(0) porque o skilltreeupdater da Wunny ainda não terminou de
+	--carregar neste ponto do master_postinit; é o mesmo instante em que
+	--winona.lua faz isso, só que lá pelo evento "ms_skilltreeinitialized".
+	inst:DoTaskInTime(0, function(inst)
+		if inst:IsValid() then
+			TheWorld:PushEvent("winona_catapultskillchanged", inst)
+			TheWorld:PushEvent("winona_spotlightskillchanged", inst)
+			TheWorld:PushEvent("winona_batteryskillchanged", inst)
+		end
+	end)
 end
 
 return MakePlayerCharacter("wunny", prefabs, assets, common_postinit, master_postinit, prefabs, prefabsItens)
