@@ -595,6 +595,16 @@ end
 -- Preserva o handler vanilla intacto fora da forma. Estados que começam com
 -- "bunnyform_" passam direto: são nossos, e as animações deles existem no bank.
 --------------------------------------------------------------------------------------
+--A exceção. O salto de parede (scripts/wunny_jumpwall.lua) é o único estado de ação de
+--fora desta família que roda igual na forma, porque as animações que ele toca —
+--boat_jump_pre/loop/pst — são das poucas que existem NOS DOIS banks: em
+--anim/player_boat_jump.zip para o wilson e em anim/manrabbit_boat_jump.zip para o
+--manrabbit. Desviá-lo para "bunnyform_action" só trocaria um pulo funcionando por um
+--"atk" no lugar.
+local SAFE_STATES_IN_FORM = {
+	wunny_jumpwall = true,
+}
+
 local function PatchAllActionHandlers(sg, fallback)
 	for act, handler in pairs(sg.actionhandlers) do
 		local old = handler
@@ -608,7 +618,13 @@ local function PatchAllActionHandlers(sg, fallback)
 				--respeitar isso evita inventar animação onde não havia.
 				return nil
 			end
-			if type(dest) == "string" and dest:sub(1, 10) == "bunnyform_" then
+			--O sg.states[dest] no whitelist não é redundante: este mesmo patch roda no
+			--SGwilson_client, que não tem os estados do salto. Sem a checagem, bastaria
+			--alguém registrar o handler no cliente para o destino apontar para um estado
+			--inexistente.
+			if type(dest) == "string"
+				and (dest:sub(1, 10) == "bunnyform_"
+					or (SAFE_STATES_IN_FORM[dest] and sg.states[dest] ~= nil)) then
 				return dest
 			end
 			return fallback

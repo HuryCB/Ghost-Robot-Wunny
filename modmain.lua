@@ -372,6 +372,7 @@ TUNING.WUNNY_BURROW_MIN_TRAVEL_DIST = 3    -- distância mínima pra valer a via
 TUNING.WUNNY_BURROW_MAP_SELECT_RADIUS = 4  -- raio de tolerância do clique no mapa em torno do ícone da toca
 TUNING.WUNNY_BURROWDASH_SPEED_MULT = 1.6   -- multiplicador de velocidade da toca-relâmpago (fome sobe na mesma proporção)
 TUNING.WUNNY_JUMPWALL_LANDING_DIST = 1.3   -- distância do centro da parede até o ponto de aterrissagem do outro lado
+TUNING.WUNNY_JUMPWALL_SPEED = 7            -- velocidade do voo do salto de parede, em unidades/s (tempo no ar = distância / isto)
 TUNING.WUNNY_BUNNYFOLLOWER_DAMAGE = 1      -- dano do coelho selvagem domesticado (cenoura) no combate "bate e foge"
 -- TUNING.WUNNY_KING_
 -- TUNING.SHADOWBUNNYMAN_ATTACK_PERIOD =
@@ -498,37 +499,40 @@ jumpwall_action.id = "WUNNY_JUMPWALL"
 jumpwall_action.str = "Saltar"
 AddAction(jumpwall_action)
 
+-- Carregar as mãos ou estar montado tira o salto da mesa: as animações desses casos são
+-- boat_jumpheavy_* / player_mount_boat_jump, que existem no bank wilson mas NÃO no
+-- manrabbit. Em vez de o salto ficar quebrado só dentro da forma bunnyman, ele fica
+-- indisponível nas duas — o que também é o que a mão espera de quem está com um baú nos
+-- braços.
+local function WunnyCanJumpWall(doer)
+    local inv = doer.replica.inventory
+    local rider = doer.replica.rider
+    return doer:HasTag("wunny")
+        and not doer:HasTag("playerghost")
+        and not (inv ~= nil and inv:IsHeavyLifting())
+        and not (rider ~= nil and rider:IsRiding())
+end
+
 AddComponentAction("SCENE", "workable", function(inst, doer, actions, right)
-    if right and doer:HasTag("wunny") and inst:HasTag("wall") and WUNNY_JUMPABLE_WALLS[inst.prefab] then
+    if right and inst:HasTag("wall") and WUNNY_JUMPABLE_WALLS[inst.prefab]
+        and WunnyCanJumpWall(doer) then
         table.insert(actions, GLOBAL.ACTIONS.WUNNY_JUMPWALL)
     end
 end)
 
+-- O deslocamento NÃO acontece aqui. Antes esta função dava um Physics:Teleport, e era
+-- isso que fazia o salto parecer teleporte — não havia animação nenhuma. Agora o estado
+-- "wunny_jumpwall" (scripts/wunny_jumpwall.lua) voa com boat_jump_* e chama esta fn ao
+-- pousar; aqui só resta a validação, feita com a MESMA função de geometria que o estado
+-- usa, para as duas pontas não poderem discordar.
 GLOBAL.ACTIONS.WUNNY_JUMPWALL.fn = function(act)
     local doer = act.doer
-    local wall = act.target
-    if doer == nil or wall == nil or not doer:HasTag("wunny") then
+    if doer == nil or not doer:HasTag("wunny") then
         return false
     end
-
-    local dx, dy, dz = doer.Transform:GetWorldPosition()
-    local wx, wy, wz = wall.Transform:GetWorldPosition()
-
-    local dirx, dirz = wx - dx, wz - dz
-    local len = math.sqrt(dirx * dirx + dirz * dirz)
-    if len < 0.001 then
-        return false
-    end
-    dirx, dirz = dirx / len, dirz / len
-
-    local landx = wx + dirx * TUNING.WUNNY_JUMPWALL_LANDING_DIST
-    local landz = wz + dirz * TUNING.WUNNY_JUMPWALL_LANDING_DIST
-
-    if not GLOBAL.TheWorld.Map:IsPassableAtPoint(landx, 0, landz, false) then
+    if GLOBAL.require("wunny_jumpwall").GetLanding(doer, act.target) == nil then
         return false, "NOTARGET"
     end
-
-    doer.Physics:Teleport(landx, 0, landz)
     return true
 end
 
@@ -1854,7 +1858,13 @@ AddStategraphPostInit("wilson", function(sg)
     --         or (action.invobject ~= nil and action.invobject:HasTag("slowfertilize") and "fertilize")
     --         or "fertilize_short"
     -- end)
-    sg.actionhandlers[GLOBAL.ACTIONS.WUNNY_JUMPWALL] = GLOBAL.ActionHandler(GLOBAL.ACTIONS.WUNNY_JUMPWALL, "doshortaction")
+end)
+
+-- Estados do salto de parede. Tem que vir DEPOIS do bloco acima (que reescreve
+-- sg.actionhandlers sem encadear) e ANTES do bunnyform (que embrulha todos os handlers
+-- para desviá-los na forma, e precisa achar este já registrado).
+AddStategraphPostInit("wilson", function(sg)
+    GLOBAL.require("wunny_jumpwall").PatchStategraph(sg)
 end)
 
 -- IMPORTANTE: o patch da forma bunnyman tem que vir DEPOIS do bloco acima. Aquele

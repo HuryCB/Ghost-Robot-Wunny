@@ -10,6 +10,10 @@
 return {
 	ACTIONFAIL =
 	{
+        WUNNY_JUMPWALL =
+        {
+            NOTARGET = "There's nowhere to land on the other side.",
+        },
         REPAIR =
         {
             WRONGPIECE = "I don't think that was right.",
