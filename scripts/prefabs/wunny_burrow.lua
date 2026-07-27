@@ -28,11 +28,14 @@ local prefabs =
 -- o mecanismo real usado por wormhole/wx78_backupbody/etc. pra aparecerem no mapa.
 local function CreateHiddenGlobalIcon(inst)
 	inst.hiddenglobalicon = SpawnPrefab("globalmapiconseeable")
-	-- ".tex" = nome do elemento em images/rabbit_hole.xml. Com ".png" o jogo procura
-	-- no atlas de minimapa dele, onde não existe ícone de toca, e não desenha nada.
-	inst.hiddenglobalicon.MiniMapEntity:SetIcon("rabbit_hole.tex")
 	inst.hiddenglobalicon.MiniMapEntity:SetPriority(5)
-	inst.hiddenglobalicon:TrackEntity(inst)
+	-- Ícone pelo 3º argumento, não por um SetIcon antes: TrackEntity sempre
+	-- redefine o ícone (globalmapicon.lua:11). Aqui o CopyIcon do MiniMapEntity
+	-- desta estrutura até funcionaria, mas passar explícito deixa as duas tocas
+	-- (esta e o rabbithole vanilla em modmain.lua) idênticas, e o rabbithole
+	-- DEPENDE disso — ele não tem MiniMapEntity para copiar.
+	-- ".tex" = nome do elemento em images/rabbit_hole.xml (arte do mod).
+	inst.hiddenglobalicon:TrackEntity(inst, nil, "rabbit_hole.tex")
 end
 
 local function OnRemoveEntity(inst)

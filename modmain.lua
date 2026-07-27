@@ -1412,12 +1412,20 @@ AddPrefabPostInit("rabbithole", function(inst)
 
     inst:DoTaskInTime(0, function(inst)
         inst.hiddenglobalicon = GLOBAL.SpawnPrefab("globalmapiconseeable")
-        -- ".tex" (nome do elemento em images/rabbit_hole.xml), não ".png": ".png" é a
-        -- convenção dos ícones que já vêm no atlas do jogo, e não existe
-        -- "rabbit_hole.png" lá. Ver o bloco de Assets no topo deste arquivo.
-        inst.hiddenglobalicon.MiniMapEntity:SetIcon("rabbit_hole.tex")
         inst.hiddenglobalicon.MiniMapEntity:SetPriority(5)
-        inst.hiddenglobalicon:TrackEntity(inst)
+        -- O ícone TEM que ir como 3º argumento do TrackEntity, não num SetIcon
+        -- antes: TrackEntity (globalmapicon.lua:11) sempre define o ícone dele
+        -- mesmo, e sem esse argumento cai no ramo final
+        --     inst.MiniMapEntity:SetIcon(target.prefab..".png")
+        -- porque o rabbithole vanilla não tem MiniMapEntity para o CopyIcon
+        -- copiar. Isso pedia "rabbithole.png", que não existe em atlas nenhum,
+        -- e o motor desenhava o xadrez magenta/ciano de textura faltando — era
+        -- esse o bug, não o registro do atlas.
+        --
+        -- ".tex" e não ".png" porque é o nome do elemento em
+        -- images/rabbit_hole.xml (arte do mod). O wormhole vanilla não passa
+        -- ícone justamente porque ele TEM MiniMapEntity próprio.
+        inst.hiddenglobalicon:TrackEntity(inst, nil, "rabbit_hole.tex")
     end)
 
     inst.OnRemoveEntity = function(inst)
