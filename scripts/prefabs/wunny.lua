@@ -6,6 +6,7 @@ local WX78MoistureMeter = require("widgets/wx78moisturemeter")
 local WendyFlowerOver = require("widgets/wendyflowerover")
 local WobyCommon = require("prefabs/wobycommon")
 local WalterWoby = require("wunny_walter_woby")
+local BunnyForm = require("wunny_bunnyform")
 local easing = require("easing")
 local WunnySkillTree = require("wunnyskilltree")
 
@@ -40,6 +41,21 @@ local assets = {
 	--e a bandeira que marca o destino da entrega. Os dois zips são declarados pelo
 	--walter.lua, não pelos prefabs do Woby — sem eles o marcador sai sem arte.
 	Asset("ANIM", "anim/courier_minimap_indicator.zip"),
+
+	--Transformacao em bunnyman (wunny_bunnyform.lua). O bank de animacao do coelho
+	--e' "manrabbit": estes zips sao declarados pelos prefabs *bunnyman* do mod, mas a
+	--Wunny precisa deles por conta propria — se ela transformar num mundo onde nenhum
+	--bunnyman foi carregado ainda, o bank nao existe e ela vira invisivel.
+	Asset("ANIM", "anim/manrabbit_basic.zip"),
+	Asset("ANIM", "anim/manrabbit_actions.zip"),
+	Asset("ANIM", "anim/manrabbit_attacks.zip"),
+	Asset("ANIM", "anim/manrabbit_build.zip"),
+	Asset("ANIM", "anim/manrabbit_boat_jump.zip"),
+	--"transform_pre"/"transform_pst" (as metades da transformacao que tocam no bank
+	--"wilson") NAO estao nas anims compartilhadas do jogador: elas vem empacotadas no
+	--zip do Woodie. Sem isto a fase 1 da ida e a fase 2 da volta nao tem animacao, e o
+	--estado trava em "busy" esperando um animover que nunca chega.
+	Asset("ANIM", "anim/player_woodie.zip"),
 	Asset("ANIM", "anim/wobycourier_marker.zip"),
 
 	--Wormwood (skill "wormwood_quick_selffertilizer"): o estado "fertilize" de
@@ -1851,6 +1867,11 @@ local common_postinit = function(inst)
 	-- (wormwood_sapling, wormwood_berrybush...), do ipecacsyrup, do
 	-- armor_lunarplant_husk e dos três pets mutantes roda em builder_replica.lua.
 	SkillWhitelists.Install(inst, SkillWhitelists.WORMWOOD)
+
+	--Transformacao em bunnyman: o netvar tem de existir nos DOIS lados, senao o
+	--cliente nao tem como aplicar o bank/build e a Wunny continua parecendo a Wunny
+	--na tela de quem nao e' o host.
+	BunnyForm.SetupNetvars(inst)
 
 	-- Wormwood (skill "wormwood_quick_selffertilizer"): sem esta tag a ação
 	-- FERTILIZE nem aparece ao usar adubo em si mesma — componentactions.lua:1250 e
@@ -3754,6 +3775,7 @@ local master_postinit = function(inst)
 	--ainda ausente as duas skills viram no-op silencioso (o `if bloomness then` do
 	--skilltree_wormwood.lua engole).
 	WormwoodBloom.SetupBloom(inst)
+	BunnyForm.SetupServer(inst)
 
 	--Wormwood (skills de aliança lunar): limites por prefab dos pets mutantes. Sem
 	--isto o `canbuild` das receitas (petleash:IsFullForPrefab) só barraria no teto

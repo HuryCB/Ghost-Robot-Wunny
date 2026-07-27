@@ -1699,6 +1699,15 @@ end
 --     return rec ~= nil and not rec.is_deconstruction_recipe and (rec.require_special_event == nil or IsSpecialEventActive(rec.require_special_event)) and rec or nil
 -- end
 
+--------------------------------------------------------------------------
+--[[ Transformacao em bunnyman: estados e bloqueios no SGwilson ]]
+--------------------------------------------------------------------------
+-- O remendo e' ADITIVO de proposito: acrescenta estados novos e REDIRECIONA
+-- handlers, em vez de reescrever corpo de estado vanilla (o "attack" do SGwilson
+-- sozinho tem ~200 linhas e e' mexido a cada patch do jogo).
+--
+-- GLOBAL.require porque wunny_bunnyform.lua roda no ambiente global (e' required
+-- por prefabs/wunny.lua), nao no ambiente do modmain.
 AddStategraphPostInit("wilson", function(sg)
     -- local actionhandler = GLOBAL.ActionHandler(GLOBAL.ACTIONS.PICK, NewQuickAction)
     sg.actionhandlers[GLOBAL.ACTIONS.PICK] = GLOBAL.ActionHandler(GLOBAL.ACTIONS.PICK, function(inst, action)
@@ -1846,6 +1855,19 @@ AddStategraphPostInit("wilson", function(sg)
     --         or "fertilize_short"
     -- end)
     sg.actionhandlers[GLOBAL.ACTIONS.WUNNY_JUMPWALL] = GLOBAL.ActionHandler(GLOBAL.ACTIONS.WUNNY_JUMPWALL, "doshortaction")
+end)
+
+-- IMPORTANTE: o patch da forma bunnyman tem que vir DEPOIS do bloco acima. Aquele
+-- bloco reescreve sg.actionhandlers[...] direto, sem encadear o handler anterior, então
+-- se o bunnyform for aplicado antes ele é simplesmente apagado para PICK/HARVEST/
+-- BUILD/COOK/etc. O bunnyform encadeia o handler antigo, então nesta ordem os dois
+-- convivem: fora da forma vale o handler da Wunny normal, dentro vale o da forma.
+AddStategraphPostInit("wilson", function(sg)
+    GLOBAL.require("wunny_bunnyform").PatchStategraph(sg)
+end)
+
+AddStategraphPostInit("wilson_client", function(sg)
+    GLOBAL.require("wunny_bunnyform").PatchClientStategraph(sg)
 end)
 
 -- AddStategraphPostInit("wilson", ActionHandler(ACTIONS.TAKEITEM, NewQuickAction))
