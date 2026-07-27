@@ -381,6 +381,24 @@ TUNING.WUNNY_BUNNYFOLLOWER_DAMAGE = 1      -- dano do coelho selvagem domesticad
 -- TUNING.SHADOWBUNNYMAN_ATTACK_PERIOD =
 -- WUNNY_RUNNING_HUNGER_RATETUNNIN.WUNNY_IDLE_HUNGER_RATE = 1
 
+-- Imagem do item inicial na TELA DE SELEÇÃO de personagem.
+--
+-- Em jogo o ícone do dwarfbunnyman vem de inventoryitem.imagename/.atlasname, definidos
+-- em PickUpRabbit (globalFunctions.lua:58) — ou seja, de uma INSTÂNCIA já spawnada.
+-- A tela de seleção não spawna nada: ela só tem o nome do prefab e chama
+-- GetInventoryItemAtlas("dwarfbunnyman.tex", true) (templates.lua:2126), que procura
+-- apenas nos inventoryimages1..4 do jogo. Não achando, o no_fallback=true devolve nil e
+-- o slot fica VAZIO (por isso não dá textura quebrada, simplesmente não aparece).
+--
+-- Este override é o gancho que o próprio jogo criou para o caso (ver o comentário em
+-- tuning.lua:3530, "added for mod characters and items"). Precisa dos dois campos porque
+-- o nome da imagem NÃO é o nome do prefab: o atlas é bunny.xml e o elemento é bunny.tex.
+-- Só um RegisterInventoryItemAtlas não resolveria — ele indexa por "dwarfbunnyman.tex",
+-- que não existe em atlas nenhum.
+-- O Asset("ATLAS", "images/inventoryimages/bunny.xml") já está declarado na linha 117.
+TUNING.STARTING_ITEM_IMAGE_OVERRIDE.dwarfbunnyman =
+    { atlas = "images/inventoryimages/bunny.xml", image = "bunny.tex" }
+
 ---CUSTOM TUNINGS
 
 TUNING.SNAKE_SPEED = 3
