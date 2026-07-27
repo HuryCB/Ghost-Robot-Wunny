@@ -40,12 +40,16 @@ local SKILL_SOURCE_CHARACTERS = {
 -- que já rodou (ex.: um watcher de worldstate.lua com uma função nil) fica
 -- pendurado na Wunny pra sempre — e explode depois, na próxima vez que esse
 -- worldstate mudar (crash em worldstate.lua:32 "attempt to call field '?'").
--- Caso confirmado: wormwood_blooming_photosynthesis registra
--- WatchWorldState("isday", inst.UpdatePhotosynthesisState) e só then chama
--- inst:UpdatePhotosynthesisState(...), que não existe na Wunny.
-local SKIPPED_ONACTIVATE_SKILLS = {
-	wormwood_blooming_photosynthesis = true,
-}
+-- Caso que era confirmado: wormwood_blooming_photosynthesis registra
+-- WatchWorldState("isday", inst.UpdatePhotosynthesisState) e só então chama
+-- inst:UpdatePhotosynthesisState(...), que a Wunny não tinha.
+--
+-- RESOLVIDO: o bloco "Wormwood: florescimento" de wunny.lua agora define
+-- inst.UpdatePhotosynthesisState (em Wormwood_SetupBloom, chamado no
+-- master_postinit ANTES desta função), então a skill pode rodar normalmente e a
+-- lista está vazia. Se alguma skill futura cair no mesmo padrão — efeito colateral
+-- permanente antes de chamar um método que a Wunny não tem — é aqui que ela entra.
+local SKIPPED_ONACTIVATE_SKILLS = {}
 
 local function ApplyAllSkillTreeEffects(inst)
 	if not TheWorld.ismastersim then

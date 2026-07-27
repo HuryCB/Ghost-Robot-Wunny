@@ -40,6 +40,24 @@ local assets = {
 	--walter.lua, não pelos prefabs do Woby — sem eles o marcador sai sem arte.
 	Asset("ANIM", "anim/courier_minimap_indicator.zip"),
 	Asset("ANIM", "anim/wobycourier_marker.zip"),
+
+	--Wormwood (skill "wormwood_quick_selffertilizer"): o estado "fertilize" de
+	--SGwilson.lua toca "fertilize_pre"/"fertilize"/"shortest_fertilize", que só
+	--existem nestes builds. Quem os carrega é o wormwood.lua, então sem declarar
+	--aqui a Wunny se autoaduba sem animação nenhuma (a versão "shortest_" é
+	--justamente a que a skill destrava).
+	Asset("ANIM", "anim/player_wormwood_fertilizer.zip"),
+	Asset("ANIM", "anim/player_mount_wormwood_fertilizer.zip"),
+	--Wormwood (skills de plantio): as cinco receitas wormwood_* usam sg_state
+	--"form_bush"/"form_moon"/... , que caem todas no estado "form_log" de
+	--SGwilson.lua. Ele toca "form_log_pre"/"form_log" e faz
+	--OverrideSymbol("wood_splinter", "wormwood_skills_fx", "wood_splinter_"..product).
+	--Se a animação não existir, o "animqueueover" que devolve pro idle nunca chega e
+	--a Wunny fica presa num estado "busy" — não é só perda visual.
+	Asset("ANIM", "anim/wormwood_skills.zip"),
+	Asset("ANIM", "anim/player_mount_wormwood_skills.zip"),
+	Asset("ANIM", "anim/wormwood_skills_fx.zip"),
+	Asset("SCRIPT", "scripts/prefabs/skilltree_wormwood.lua"),
 }
 
 local prefabsItens = {
@@ -235,6 +253,16 @@ local prefabs = {
 	--que pisca no destino quando a entrega é agendada.
 	"wobycourier_marker",
 	"reticuleaoeping_1d2_12",
+	--Wormwood: os três pets mutantes das skills de aliança lunar são criados pelas
+	--receitas como proxies (recipes.lua product="wormwood_mutantproxy_*"), e a
+	--ipecacsyrup é o produto de "wormwood_syrupcrafting". O compostheal_buff é o
+	--debuff de cura que OnFertilizedWithCompost aplica.
+	"wormwood_mutantproxy_carrat",
+	"wormwood_mutantproxy_lightflier",
+	"wormwood_mutantproxy_fruitdragon",
+	"wormwood_lunar_transformation_finish",
+	"compostheal_buff",
+	"ipecacsyrup",
 }
 
 local WX78ModuleDefinitionFile = require("wx78_moduledefs")
@@ -1843,6 +1871,90 @@ local WALTER_SKILLS_ALWAYSON = {
 	walter_camp_wobycourier = true,
 }
 
+----------------------------------------------------------------------------------------
+-- Wormwood: skills concedidas de forma permanente.
+--
+-- As quatro que têm onactivate (identify_plants2 -> tag "farmplantidentifier",
+-- blooming_farmrange1 -> tag "farmplantfastpicker", e as duas de aliança lunar ->
+-- tag "player_lunar_aligned" + resistências) já vêm de
+-- WunnySkillTree.ApplyAllSkillTreeEffects, que já inclui "wormwood".
+--
+-- Onde o vanilla lê cada uma das outras:
+--   saplingcrafting/berrybushcrafting/juicyberrybushcrafting/reedscrafting/
+--   lureplantbulbcrafting  -> recipes.lua:343-348 (builder_skill das receitas
+--                             wormwood_* que plantam por custo de vida)
+--   syrupcrafting          -> recipes.lua:342 (receita "ipecacsyrup")
+--   mushroomplanter_ratebonus1/2 -> prefabs/mushroom_farm.lua:59-61 (cogumelos
+--                             crescem mais rápido; lê o skilltreeupdater de quem
+--                             PLANTOU, não de quem colhe)
+--   mushroomplanter_upgrade      -> mushroom_farm.lua:51 (planter melhorado)
+--   moon_cap_eating        -> prefabs/moon_mushroom.lua:37 (moon cap não dá
+--                             penalidade) + mushroom_farm.lua:257
+--   bugs                   -> prefabs/bee.lua:119,131 + beebox.lua:137 +
+--                             wasphive.lua:40 + brains/butterflybrain.lua e
+--                             moonbutterflybrain.lua (abelhas/borboletas não
+--                             fogem nem atacam)
+--   quick_selffertilizer   -> stategraphs/SGwilson.lua:20941 (animação
+--                             "shortest_fertilize" em vez de "fertilize")
+--   armor_bramble          -> prefabs/armor_bramble.lua:39 +
+--                             armor_lunarplant.lua:267 (espinhos revidam mais)
+--   allegiance_lunar_plant_gear_1 -> armor_lunarplant.lua:38 + receitas
+--                             armor_lunarplant_husk e cia.
+--   allegiance_lunar_plant_gear_2 -> components/lunarplant_tentacle_weapon.lua:3
+--   allegiance_lunar_mutations_1/2/3 -> recipes.lua:349-351 (os pets mutantes
+--                             wormwood_carrat / lightflier / fruitdragon)
+--
+-- Os nós "lock" (wormwood_allegiance_lock_lunar_1/2 e
+-- wormwood_allegiance_count_lock_1/2) não entram: são só travas da UI da árvore.
+--
+-- Ao contrário dos outros personagens, a Wormwood só tem UM ramo de aliança
+-- (lunar), então não há o conflito shadow/lunar que existe no wx78 e no Walter —
+-- as cinco skills de aliança entram todas juntas sem se anularem.
+--
+-- Instalada em common_postinit igual às outras: o filtro por builder_skill das
+-- ~10 receitas acima roda no cliente (builder_replica.lua:312).
+--
+-- ATENÇÃO ao ramo "blooming": seis destas skills (speed1, speed2, max_upgrade,
+-- overheatprotection, photosynthesis, trapbramble) só são lidas DENTRO de
+-- prefabs/wormwood.lua, num sistema de florescimento que a Wunny não tinha. É por
+-- isso que existe o bloco "Wormwood: florescimento" logo abaixo — sem ele a
+-- whitelist deixaria essas seis ligadas e inertes.
+----------------------------------------------------------------------------------------
+
+local WORMWOOD_SKILLS_ALWAYSON = {
+	-- Raiz (identificar plantas)
+	wormwood_identify_plants2 = true,
+	-- Plantio por custo de vida
+	wormwood_saplingcrafting = true,
+	wormwood_berrybushcrafting = true,
+	wormwood_juicyberrybushcrafting = true,
+	wormwood_reedscrafting = true,
+	wormwood_lureplantbulbcrafting = true,
+	-- Cogumelos / xarope
+	wormwood_mushroomplanter_ratebonus1 = true,
+	wormwood_mushroomplanter_ratebonus2 = true,
+	wormwood_mushroomplanter_upgrade = true,
+	wormwood_moon_cap_eating = true,
+	wormwood_syrupcrafting = true,
+	-- Florescimento
+	wormwood_blooming_speed1 = true,
+	wormwood_blooming_speed2 = true,
+	wormwood_blooming_max_upgrade = true,
+	wormwood_blooming_overheatprotection = true,
+	wormwood_blooming_photosynthesis = true,
+	wormwood_blooming_farmrange1 = true,
+	wormwood_blooming_trapbramble = true,
+	wormwood_quick_selffertilizer = true,
+	wormwood_bugs = true,
+	wormwood_armor_bramble = true,
+	-- Aliança lunar
+	wormwood_allegiance_lunar_plant_gear_1 = true,
+	wormwood_allegiance_lunar_plant_gear_2 = true,
+	wormwood_allegiance_lunar_mutations_1 = true,
+	wormwood_allegiance_lunar_mutations_2 = true,
+	wormwood_allegiance_lunar_mutations_3 = true,
+}
+
 local function Wunny_InstallSkillWhitelist(inst, skills)
 	local skilltreeupdater = inst.components.skilltreeupdater
 	if skilltreeupdater == nil then
@@ -1855,6 +1967,359 @@ local function Wunny_InstallSkillWhitelist(inst, skills)
 		end
 		return IsActivated_prev(self, skill, ...)
 	end
+end
+
+--------------------------------------------------------------------------------------
+-- Wormwood: florescimento (bloom).
+--
+-- Mesma situação do bloco da roda de comandos do Walter: a whitelist não basta.
+-- Seis das skills de WORMWOOD_SKILLS_ALWAYSON (blooming_speed1, blooming_speed2,
+-- blooming_max_upgrade, blooming_overheatprotection, blooming_photosynthesis e
+-- blooming_trapbramble) são lidas EXCLUSIVAMENTE dentro de prefabs/wormwood.lua,
+-- pelo sistema de florescimento — nenhum arquivo compartilhado do jogo as consulta.
+-- Sem portar o sistema, essas seis ficariam ligadas e sem efeito nenhum.
+--
+-- O que este bloco reimplementa de wormwood.lua:
+--   componente "bloomness"     -> o contador de estágios (0..3) em si
+--   componente "fertilizable"  -> receber adubo (fórmula/composto/estrume)
+--   EnableFullBloom            -> estágio 3: isolamento de verão + a tarefa de AOE
+--   DoAOEeffect                -> cuida de plantações em volta, rearma armadilhas
+--                                 de espinho (trapbramble) e alimenta a
+--                                 fotossíntese (photosynthesis)
+--   UpdatePhotosynthesisState  -> regeneração de vida de dia em pleno florescimento
+--   SetStatsLevel              -> velocidade/fome por estágio (adaptado, ver abaixo)
+--
+-- DUAS DIFERENÇAS DELIBERADAS em relação ao vanilla:
+--
+-- 1. Nada de morfologia visual. O UpdateBloomStage original chama
+--    SetSkinType(inst, "stage_2".."stage_4", "wilson"), que depende dos builds de
+--    florescimento do player_wormwood — arte que a Wunny não tem (os skin_modes
+--    dela são registrados no AddModCharacter do modmain). Aqui o florescimento é
+--    só mecânico: os bônus valem, mas a Wunny não ganha flores no corpo. Pela
+--    mesma razão ficaram de fora os FX de pólen e de plantinhas do rastro
+--    (PollenTick/PlantTick), que precisariam de net_vars e listeners próprios só
+--    pra efeito visual.
+--
+-- 2. A fome não passa por hunger:SetRate. A Wunny recalcula
+--    `hunger.hungerrate` do zero a cada evento "locomote" (ver o ListenForEvent
+--    em master_postinit), então um SetRate aqui seria sobrescrito no primeiro
+--    passo que ela desse — o florescimento viraria velocidade de graça. Em vez
+--    disso o multiplicador vai pra inst._bloom_hungermult, que aquele handler
+--    multiplica nos três ramos.
+--------------------------------------------------------------------------------------
+
+local function Wormwood_EnableBeeBeacon(inst, enable)
+	if enable then
+		if not inst.beebeacon then
+			inst.beebeacon = true
+			inst:AddTag("beebeacon")
+		end
+	elseif inst.beebeacon then
+		inst.beebeacon = nil
+		inst:RemoveTag("beebeacon")
+	end
+end
+
+local WORMWOOD_AOE_ONEOF_TAGS = { "tendable_farmplant", "trap_bramble" }
+local WORMWOOD_AOE_CANT_TAGS = { "INLIMBO", "FX" }
+local WORMWOOD_DAYLIGHT_MUST_TAGS = { "daylight" }
+local WORMWOOD_DAYLIGHT_CANT_TAGS = { "INLIMBO" }
+
+local function Wormwood_DoAOEeffect(inst)
+	local x, y, z = inst.Transform:GetWorldPosition()
+
+	local skilltreeupdater = inst.components.skilltreeupdater
+
+	local reset_brambletraps, grow_in_daylight
+	if skilltreeupdater ~= nil then
+		reset_brambletraps = skilltreeupdater:IsActivated("wormwood_blooming_trapbramble")
+		grow_in_daylight = skilltreeupdater:IsActivated("wormwood_blooming_photosynthesis")
+	end
+
+	local interact_range_multiplier = (
+		skilltreeupdater ~= nil and skilltreeupdater:IsActivated("wormwood_blooming_farmrange1") and TUNING.WORMWOOD_TENDRANGE_MULT
+		or 1
+	)
+
+	local interact_range = TUNING.WORMWOOD_BLOOM_FARM_PLANT_INTERACT_RANGE * interact_range_multiplier
+	for _, v in pairs(TheSim:FindEntities(x, y, z, interact_range, nil, WORMWOOD_AOE_CANT_TAGS, WORMWOOD_AOE_ONEOF_TAGS)) do
+		if v.components.farmplanttendable then
+			v.components.farmplanttendable:TendTo(inst)
+
+		elseif reset_brambletraps and v.components.mine ~= nil and v:HasTag("minesprung") then
+			if v.last_reset == nil or v.last_reset + TUNING.WORMWOOD_TRAP_BRAMBLE_AUTO_RESET_COOLDOWN < GetTime() then
+				v.components.mine:Reset()
+			end
+		end
+	end
+
+	--A fotossíntese conta luz artificial como "dia": em pleno florescimento, ficar
+	--perto de uma fogueira à noite também regenera vida.
+	local should_grow_in_daylight = TheWorld.state.isday
+	if grow_in_daylight and not should_grow_in_daylight then
+		local ents = TheSim:FindEntities(x, y, z, TUNING.DAYLIGHT_SEARCH_RANGE, WORMWOOD_DAYLIGHT_MUST_TAGS, WORMWOOD_DAYLIGHT_CANT_TAGS)
+		for _, v in ipairs(ents) do
+			local lightrad = v.Light:GetCalculatedRadius() * .7
+			if v:GetDistanceSqToPoint(x, y, z) < lightrad * lightrad then
+				should_grow_in_daylight = true
+				break
+			end
+		end
+	end
+
+	inst:UpdatePhotosynthesisState(should_grow_in_daylight)
+end
+
+local function Wormwood_EnableFullBloom(inst, enable)
+	if enable then
+		if not inst.fullbloom then
+			inst.fullbloom = true
+
+			local skilltreeupdater = inst.components.skilltreeupdater
+			local has_upgraded_overheat_protection = (skilltreeupdater ~= nil and skilltreeupdater:IsActivated("wormwood_blooming_overheatprotection"))
+			inst.components.temperature.inherentsummerinsulation = (has_upgraded_overheat_protection and TUNING.INSULATION_MED_LARGE)
+				or TUNING.INSULATION_SMALL
+
+			if not inst.tendplanttask then
+				inst.tendplanttask = inst:DoPeriodicTask(.5, Wormwood_DoAOEeffect)
+			end
+
+			inst:UpdatePhotosynthesisState(TheWorld.state.isday)
+		end
+	elseif inst.fullbloom then
+		inst.fullbloom = nil
+		inst.components.temperature.inherentsummerinsulation = 0
+		if inst.tendplanttask then
+			inst.tendplanttask:Cancel()
+			inst.tendplanttask = nil
+		end
+
+		inst:UpdatePhotosynthesisState(TheWorld.state.isday)
+	end
+end
+
+--Ver a diferença 2 do comentário do bloco: a fome vai por _bloom_hungermult em vez
+--de hunger:SetRate, senão o handler de "locomote" da Wunny sobrescreveria.
+local function Wormwood_SetStatsLevel(inst, level)
+	local mult = Remap(level, 0, 3, 1, 1.2)
+	--V2C: playerspeedmult does not stack with mount speed
+	inst.components.playerspeedmult:SetSpeedMult("wormwood_bloom_level", mult)
+	--Só guarda o multiplicador e reassenta a taxa parada; quem recalcula de fato é
+	--o handler de "locomote". Multiplicar a hungerrate atual aqui acumularia a cada
+	--troca de estágio (e a cada save/load, via bloomness:OnLoad).
+	inst._bloom_hungermult = mult
+	inst.components.hunger.hungerrate = TUNING.WUNNY_HUNGER_RATE * mult
+end
+
+local function Wormwood_SetUserFlagLevel(inst, level)
+	--No bit ops support, but in this case, + results in same as |
+	local flags = USERFLAGS.CHARACTER_STATE_1 + USERFLAGS.CHARACTER_STATE_2 + USERFLAGS.CHARACTER_STATE_3
+	if level > 0 then
+		local addflag = USERFLAGS["CHARACTER_STATE_" .. tostring(level)]
+		--No bit ops support, but in this case, - results in same as &~
+		inst.Network:RemoveUserFlag(flags - addflag)
+		inst.Network:AddUserFlag(addflag)
+	else
+		inst.Network:RemoveUserFlag(flags)
+	end
+end
+
+local Wormwood_UpdateBloomStage
+
+local function Wormwood_OnNewSGState(inst)
+	if not inst.sg:HasStateTag("nomorph") then
+		Wormwood_UpdateBloomStage(inst)
+	end
+end
+
+--Sem a parte visual (ver diferença 1 do comentário do bloco): o original troca o
+--skin mode pra "stage_2".."stage_4" aqui. O adiamento por "nomorph" continua igual
+--ao vanilla — os bônus não devem entrar no meio de um estado que não pode ser
+--interrompido (o próprio estado "fertilize" é um deles).
+function Wormwood_UpdateBloomStage(inst, stage)
+	stage = stage or inst.components.bloomness:GetLevel()
+
+	local isghost = inst:HasTag("playerghost") or inst.sg:HasStateTag("ghostbuild")
+
+	if not isghost and inst.sg:HasStateTag("nomorph") then
+		inst._queued_morph = true
+		inst:ListenForEvent("newstate", Wormwood_OnNewSGState)
+		return
+	end
+
+	Wormwood_EnableBeeBeacon(inst, stage > 0)
+	Wormwood_EnableFullBloom(inst, stage >= 3)
+	Wormwood_SetStatsLevel(inst, stage)
+	Wormwood_SetUserFlagLevel(inst, stage)
+
+	if inst._queued_morph then
+		inst._queued_morph = false
+		inst:RemoveEventCallback("newstate", Wormwood_OnNewSGState)
+	end
+
+	local silent = inst._bloom_loading or inst.components.health:IsDead()
+		or not inst.entity:IsVisible() or inst.sg:HasStateTag("silentmorph")
+
+	if stage > 0 and not inst._bloomed_announced and not silent and not isghost then
+		inst._bloomed_announced = true
+		inst.components.talker:Say(GetString(inst, "ANNOUNCE_BLOOMING"))
+	elseif stage <= 0 then
+		inst._bloomed_announced = nil
+	end
+end
+
+local function Wormwood_OnFertilizedWithFormula(inst, value)
+	if value > 0 and inst.components.bloomness then
+		if inst.components.skilltreeupdater:IsActivated("wormwood_blooming_max_upgrade") then
+			value = value * TUNING.WORMWOOD_BLOOM_MAX_UPGRADE_MULT
+		end
+		inst.components.bloomness:Fertilize(value)
+	end
+end
+
+local function Wormwood_OnFertilizedWithCompost(inst, value)
+	if value > 0 and inst.components.health and not inst.components.health:IsDead() then
+		local healing = TUNING.WORMWOOD_COMPOST_HEAL_VALUES[math.ceil(value / 8)] or TUNING.WORMWOOD_COMPOST_HEAL_VALUES[1]
+		inst:AddDebuff("compostheal_buff", "compostheal_buff", { duration = healing * (TUNING.WORMWOOD_COMPOST_HEALOVERTIME_TICK / TUNING.WORMWOOD_COMPOST_HEALOVERTIME_HEALTH) })
+	end
+end
+
+local function Wormwood_OnFertilizedWithManure(inst, value, src)
+	if value > 0 and inst.components.bloomness then
+		local healing = TUNING.WORMWOOD_MANURE_HEAL_VALUES[math.ceil(value / 8)] or TUNING.WORMWOOD_MANURE_HEAL_VALUES[1]
+		inst.components.health:DoDelta(healing, false, src ~= nil and src.prefab or nil)
+	end
+end
+
+local function Wormwood_OnFertilized(inst, fertilizer_obj)
+	if inst.components.health and inst.components.health.canheal then
+		local fertilizer = fertilizer_obj.components.fertilizer
+		if fertilizer and fertilizer.nutrients then
+			inst:OnFertilizedWithFormula(fertilizer.nutrients[TUNING.FORMULA_NUTRIENTS_INDEX], fertilizer_obj)
+			inst:OnFertilizedWithCompost(fertilizer.nutrients[TUNING.COMPOST_NUTRIENTS_INDEX], fertilizer_obj)
+			inst:OnFertilizedWithManure(fertilizer.nutrients[TUNING.MANURE_NUTRIENTS_INDEX], fertilizer_obj)
+			return true
+		end
+	end
+end
+
+local function Wormwood_CalcBloomRateFn(inst, level, is_blooming, fertilizer)
+	local season_mult = 1
+	if TheWorld.state.season == "spring" then
+		if is_blooming then
+			season_mult = TUNING.WORMWOOD_SPRING_BLOOM_MOD
+		else
+			return TUNING.WORMWOOD_SPRING_BLOOMDRAIN_RATE
+		end
+	elseif TheWorld.state.season == "winter" then
+		if is_blooming then
+			season_mult = TUNING.WORMWOOD_WINTER_BLOOM_MOD
+		else
+			return TUNING.WORMWOOD_WINTER_BLOOMDRAIN_RATE
+		end
+	end
+
+	local rate = (is_blooming and fertilizer > 0) and (season_mult * (1 + fertilizer * TUNING.WORMWOOD_FERTILIZER_RATE_MOD)) or 1
+	return rate
+end
+
+local function Wormwood_CalcFullBloomDurationFn(inst, value, remaining, full_bloom_duration)
+	value = value * TUNING.WORMWOOD_FERTILIZER_BLOOM_TIME_MOD
+
+	local actual_maximum = (inst.components.skilltreeupdater and
+			inst.components.skilltreeupdater:IsActivated("wormwood_blooming_max_upgrade") and
+			TUNING.WORMWOOD_BLOOM_FULL_MAX_DURATION_UPGRADED)
+		or TUNING.WORMWOOD_BLOOM_FULL_MAX_DURATION
+	return math.min(remaining + value, actual_maximum)
+end
+
+local function Wormwood_OnSeasonChange(inst, season)
+	if season == "spring" and not inst:HasTag("playerghost") then
+		inst.components.bloomness:Fertilize()
+	else
+		inst.components.bloomness:UpdateRate()
+	end
+end
+
+local function Wormwood_UpdatePhotosynthesisState(inst, isday)
+	local should_photosynthesize = false
+	if isday and inst.fullbloom and inst.components.skilltreeupdater
+		and inst.components.skilltreeupdater:IsActivated("wormwood_blooming_photosynthesis")
+		and not inst:HasTag("playerghost") then
+		should_photosynthesize = true
+	end
+	if should_photosynthesize ~= inst.photosynthesizing then
+		inst.photosynthesizing = should_photosynthesize
+		if inst.components.health then
+			if should_photosynthesize then
+				local regen = TUNING.WORMWOOD_PHOTOSYNTHESIS_HEALTH_REGEN
+				inst.components.health:AddRegenSource(inst, regen.amount, regen.period, "photosynthesis_skill")
+			else
+				inst.components.health:RemoveRegenSource(inst, "photosynthesis_skill")
+			end
+		end
+	end
+end
+
+local function Wormwood_OnBecameGhost(inst)
+	inst.components.bloomness:SetLevel(0)
+	inst:UpdatePhotosynthesisState(TheWorld.state.isday)
+end
+
+local function Wormwood_OnRespawnedFromGhost(inst)
+	if TheWorld.state.isspring then
+		inst.components.bloomness:Fertilize()
+	end
+	inst:UpdatePhotosynthesisState(TheWorld.state.isday)
+end
+
+--Chamado no master_postinit ANTES de WunnySkillTree.ApplyAllSkillTreeEffects: o
+--onactivate de wormwood_blooming_speed1/speed2 chama bloomness:SetDurations, então
+--o componente já precisa existir naquele momento (com a whitelist ativa, speed1 vê
+--speed2 como ligada e recua; speed2 aplica UPGRADED2, que é o tier mais rápido —
+--"wormwood_blooming_speed3" não existe como skill, é só o nome do ícone de
+--blooming_max_upgrade).
+local function Wormwood_SetupBloom(inst)
+	inst.fullbloom = nil
+	inst.beebeacon = nil
+	inst._bloom_hungermult = 1
+
+	--bloomness:OnLoad chama onlevelchangedfn direto, então recarregar um mundo com a
+	--Wunny já florida reentraria em UpdateBloomStage e ela anunciaria "estou
+	--florescendo!" a cada load. O wormwood.lua resolve isso com _loading no
+	--OnPreLoad/OnLoad dele; aqui basta soltar a flag no frame seguinte, já que o
+	--OnLoad acontece de forma síncrona durante o spawn.
+	inst._bloom_loading = true
+	inst:DoTaskInTime(0, function(inst)
+		inst._bloom_loading = nil
+	end)
+
+	local bloomness = inst:AddComponent("bloomness")
+	bloomness:SetDurations(TUNING.WORMWOOD_BLOOM_STAGE_DURATION, TUNING.WORMWOOD_BLOOM_FULL_DURATION)
+	bloomness.onlevelchangedfn = Wormwood_UpdateBloomStage
+	bloomness.calcratefn = Wormwood_CalcBloomRateFn
+	bloomness.calcfullbloomdurationfn = Wormwood_CalcFullBloomDurationFn
+
+	local fertilizable = inst:AddComponent("fertilizable")
+	--sic: o nome do campo tem esse typo no vanilla (components/fertilizable.lua)
+	fertilizable.onfertlizedfn = Wormwood_OnFertilized
+
+	inst.OnFertilizedWithFormula = Wormwood_OnFertilizedWithFormula
+	inst.OnFertilizedWithCompost = Wormwood_OnFertilizedWithCompost
+	inst.OnFertilizedWithManure = Wormwood_OnFertilizedWithManure
+	inst.UpdateBloomStage = Wormwood_UpdateBloomStage
+	inst.UpdatePhotosynthesisState = Wormwood_UpdatePhotosynthesisState
+
+	if inst.components.acidlevel ~= nil then
+		--chuva ácida aduba em vez de só machucar, igual no wormwood.lua
+		inst.components.acidlevel:SetOverrideAcidRainTickFn(function(inst, damage)
+			inst:OnFertilizedWithFormula(damage)
+		end)
+	end
+
+	inst:ListenForEvent("ms_becameghost", Wormwood_OnBecameGhost)
+	inst:ListenForEvent("ms_respawnedfromghost", Wormwood_OnRespawnedFromGhost)
+	inst:WatchWorldState("season", Wormwood_OnSeasonChange)
 end
 
 --------------------------------------------------------------------------------------
@@ -2590,6 +3055,21 @@ local common_postinit = function(inst)
 	-- "skilltreeinitialized_client"), e o filtro por builder_skill das receitas de
 	-- munição e de peça de estilingue roda em builder_replica.lua.
 	Wunny_InstallSkillWhitelist(inst, WALTER_SKILLS_ALWAYSON)
+	-- Wormwood: cliente também. O filtro por builder_skill das receitas de plantio
+	-- (wormwood_sapling, wormwood_berrybush...), do ipecacsyrup, do
+	-- armor_lunarplant_husk e dos três pets mutantes roda em builder_replica.lua.
+	Wunny_InstallSkillWhitelist(inst, WORMWOOD_SKILLS_ALWAYSON)
+
+	-- Wormwood (skill "wormwood_quick_selffertilizer"): sem esta tag a ação
+	-- FERTILIZE nem aparece ao usar adubo em si mesma — componentactions.lua:1250 e
+	-- :2656 exigem doer:HasTag("self_fertilizable"). Vem em common_postinit porque
+	-- o componentactions roda nos dois lados.
+	inst:AddTag("self_fertilizable")
+	-- ...e sem estes builds os estados "fertilize" e "form_log" de SGwilson.lua tocam
+	-- animações que não existem na Wunny (ver o comentário dos Assets no topo do
+	-- arquivo — no caso do form_log isso a prenderia num estado "busy").
+	inst.AnimState:AddOverrideBuild("player_wormwood_fertilizer")
+	inst.AnimState:AddOverrideBuild("wormwood_skills")
 
 	-- Walter: metade das skills da Woby só é alcançável por estas interfaces (ver o
 	-- comentário grande do bloco "roda de comandos montada" acima). Tudo em
@@ -3652,16 +4132,21 @@ local master_postinit = function(inst)
 	inst.components.locomotor:SetFasterOnGroundTile(WORLD_TILES.SINKHOLE, true)
 
 	inst:ListenForEvent("locomote", function()
+		-- Wormwood: o florescimento acelera a Wunny e cobra fome na mesma
+		-- proporção (Wormwood_SetStatsLevel). Como este handler reescreve a
+		-- hungerrate do zero em todos os ramos, o multiplicador do bloom tem que
+		-- entrar aqui — senão o estágio 3 sairia de graça.
+		local bloommult = inst._bloom_hungermult or 1
 		if inst.is_burrowdashing then
 			-- fome consumida proporcionalmente ao ganho de velocidade da toca
-			inst.components.hunger.hungerrate = TUNING.WUNNY_HUNGER_RATE * TUNING.WUNNY_BURROWDASH_SPEED_MULT
+			inst.components.hunger.hungerrate = TUNING.WUNNY_HUNGER_RATE * TUNING.WUNNY_BURROWDASH_SPEED_MULT * bloommult
 		elseif inst.sg ~= nil and inst.sg:HasStateTag("moving") then
 			-- inst.components.hunger:SetRate(
 			-- 	inst.runningSpeed
 			-- -- * TUNING.WUNNY_HUNGER_RATE *
 			-- --  TUNING.WUNNY_HUNGER_RATE
 			-- ) --1.20
-			inst.components.hunger.hungerrate = inst.runningSpeed * TUNING.WUNNY_HUNGER_RATE
+			inst.components.hunger.hungerrate = inst.runningSpeed * TUNING.WUNNY_HUNGER_RATE * bloommult
 			-- print("Runspeed ", inst.components.locomotor:GetRunSpeed())
 			-- print("Multspeed ", inst.components.locomotor:GetSpeedMultiplier())
 			-- print("Walkspeed ", inst.components.locomotor:GetWalkSpeed())
@@ -3673,7 +4158,7 @@ local master_postinit = function(inst)
 			-- 	TUNING.WUNNY_HUNGER_RATE
 			-- 	-- * TUNING.WUNNY_HUNGER_RATE
 			-- )
-			inst.components.hunger.hungerrate = TUNING.WUNNY_HUNGER_RATE
+			inst.components.hunger.hungerrate = TUNING.WUNNY_HUNGER_RATE * bloommult
 		end
 	end)
 
@@ -4470,6 +4955,20 @@ local master_postinit = function(inst)
 	--lista do servidor.
 	inst:ListenForEvent("mounted", Walter_OnMounted)
 	inst:ListenForEvent("dismounted", Walter_OnDismounted)
+
+	--Wormwood: o florescimento (ver o bloco "Wormwood: florescimento"). TEM que vir
+	--antes do ApplyAllSkillTreeEffects abaixo, porque o onactivate de
+	--wormwood_blooming_speed1/speed2 chama bloomness:SetDurations — com o componente
+	--ainda ausente as duas skills viram no-op silencioso (o `if bloomness then` do
+	--skilltree_wormwood.lua engole).
+	Wormwood_SetupBloom(inst)
+
+	--Wormwood (skills de aliança lunar): limites por prefab dos pets mutantes. Sem
+	--isto o `canbuild` das receitas (petleash:IsFullForPrefab) só barraria no teto
+	--global de 12 pets da Wunny, e daria pra encher a fila inteira de fruitdragons.
+	inst.components.petleash:SetMaxPetsForPrefab("wormwood_lightflier", TUNING.WORMWOOD_PET_LIGHTFLIER_LIMIT)
+	inst.components.petleash:SetMaxPetsForPrefab("wormwood_carrat", TUNING.WORMWOOD_PET_CARRAT_LIMIT)
+	inst.components.petleash:SetMaxPetsForPrefab("wormwood_fruitdragon", TUNING.WORMWOOD_PET_FRUITDRAGON_LIMIT)
 
 	WunnySkillTree.ApplyAllSkillTreeEffects(inst)
 
