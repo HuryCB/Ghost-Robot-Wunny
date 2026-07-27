@@ -29,16 +29,21 @@
 	bloqueadas na forma — não por balanceamento, e sim porque chop/mine/dig/build
 	não têm animação nesse bank.
 
-	O que o bank TEM e portanto continua funcionando:
+	O bank tem exatamente 64 animações — a lista fica em BANK_ANIMS, extraída dos
+	anim.bin e não de suposição. As que importam:
 	  idle_loop, walk_pre/loop/pst, run_pre/loop/pst   -> os mesmos nomes do wilson
 	  sleep_pre/loop/pst, hit, hit_big, death, eat     -> idem
-	  frozen, swap_frozen, shock_loop/pst              -> congelar e choque
+	  frozen, frozen_loop_pst, shock_loop/pst          -> congelar e choque
 	  atk, atk_object, atk_object_pre                  -> atacar, com ou sem arma
 	  swap_object, swap_hat (símbolos)                 -> empunhar arma e usar chapéu
-	  carry, walk_overhead_*, idle_loop_overhead       -> carregar coisa pesada
+	  walk_overhead_*, idle_loop_overhead              -> carregar coisa pesada
+	  pig_pickup, pig_take, pig_reject                 -> pegar/recusar objeto
 	  boat_jump*                                       -> navegar
 	  trans_beard_pre, trans_rabbit_pst                -> a própria transformação
 	  dance, disgust, idle_angry/creepy/happy/earrub   -> emotes
+
+	NÃO existem "carry" nem "swap_frozen", apesar de versões anteriores deste
+	comentário afirmarem que sim.
 
 	A convenção de nomes dos bancos de NPC do DST coincidir com a do wilson em
 	locomoção/sono/dano é o que torna isto viável sem arte nova.
@@ -115,6 +120,125 @@ local function IsInForm(inst)
 end
 
 --------------------------------------------------------------------------------------
+-- REDE DE SEGURANÇA DE ANIMAÇÃO
+--
+-- Lista extraída dos próprios anim.bin (manrabbit_basic/actions/attacks/boat_jump/
+-- beard_*/parasite_death), não do que a gente supunha. Duas correções que ela trouxe:
+-- não existe "carry" nem "swap_frozen" (o comentário antigo do cabeçalho errava nos
+-- dois), e existem pig_pickup/pig_take/pig_reject, que são animações de pegar coisa.
+--
+-- POR QUE ISTO EXISTE, se os actionhandlers já são redirecionados: porque handler de
+-- ação não é o único caminho para um estado. Dos 439 estados do SGwilson, 363 tocam
+-- pelo menos uma animação que este bank não tem, e boa parte deles é alcançada por
+-- EVENTO, não por ação — knockback, afogar, cair no void, nocaute, bocejo, emote,
+-- powerup do WX-78. Pior: os nomes nem sempre são literais. GetRunStateAnim
+-- (SGwilson.lua:502) monta o nome de ANDAR conforme o contexto, e só "run_*" está no
+-- bank; carregar peso vira "heavy_walk_*", tempestade de areia "sand_walk_*", ficar
+-- grogue "idle_walk_*", gelo fino "careful_walk_*". Ou seja: andar grogue sumia.
+--
+-- Enumerar isso estado a estado é a mesma corrida perdida das ações. Então validamos no
+-- último ponto possível — a própria chamada de animação — trocando o AnimState por um
+-- proxy enquanto a forma está ativa. Fora da forma o objeto real volta e nada disto roda.
+--------------------------------------------------------------------------------------
+local BANK_ANIMS = {}
+for _, a in ipairs({
+	"abandon", "alert_loop", "alert_pre", "alert_pst", "atk", "atk_object",
+	"atk_object_pre", "beard_atk", "beard_idle_loop", "beard_run_loop", "beard_run_pre",
+	"beard_run_pst", "beard_taunt", "beard_walk_loop", "beard_walk_pre", "beard_walk_pst",
+	"boat_jump", "boat_jump_loop", "boat_jump_pre", "boat_jump_pst", "corpse",
+	"corpse_hit", "dance", "death", "despawn", "disgust", "eat", "frozen",
+	"frozen_loop_pst", "hit", "hit_big", "hungry", "idle_angry", "idle_creepy",
+	"idle_earrub", "idle_happy", "idle_loop", "idle_loop_overhead", "manrabbit",
+	"parasite_death_pst", "pig_pickup", "pig_reject", "pig_take", "run_loop", "run_pre",
+	"run_pst", "shock_loop", "shock_pst", "sleep_loop", "sleep_pre", "sleep_pst",
+	"spawn_loop", "spawn_pre", "spawn_pst", "trans_beard_pre", "trans_beard_pst",
+	"trans_rabbit_pre", "trans_rabbit_pst", "walk_loop", "walk_overhead_loop",
+	"walk_overhead_pre", "walk_overhead_pst", "walk_pre", "walk_pst",
+}) do
+	BANK_ANIMS[a] = true
+end
+
+--Substituto para uma animação que o bank não tem. A regra preserva o SUFIXO, porque os
+--estados encadeiam _pre -> _loop -> _pst via animover: trocar por algo de sufixo
+--diferente quebraria a cadeia e travaria o estado.
+local ANIM_SUFFIXES = { pre = true, loop = true, pst = true }
+
+local function ResolveAnim(anim)
+	if type(anim) ~= "string" or BANK_ANIMS[anim] then
+		return anim
+	end
+
+	--Sem alternação: padrão de Lua não tem "|". "%a+" não casa "_", então o base
+	--preguiçoso cresce até sobrar exatamente o sufixo ("heavy_walk_pre" -> heavy_walk/pre).
+	local base, suffix = anim:match("^(.-)_(%a+)$")
+	if suffix ~= nil and not ANIM_SUFFIXES[suffix] then
+		base, suffix = nil, nil
+	end
+	if suffix ~= nil then
+		--Carregar coisa pesada acima da cabeça: o coelho tem animação própria pra isso.
+		if base:find("heavy", 1, true) or base:find("overhead", 1, true) then
+			return "walk_overhead_" .. suffix
+		end
+		--Todas as variantes de locomoção do GetRunStateAnim caem no andar normal.
+		if base:find("walk") or base:find("run") or base:find("teeter")
+			or base:find("sand") or base:find("careful") then
+			return "run_" .. suffix
+		end
+		if suffix == "loop" then
+			return "idle_loop"
+		end
+		return "atk"
+	end
+
+	if anim:find("emote", 1, true) then
+		return "dance"
+	end
+	if anim:find("pickup", 1, true) then
+		return "pig_pickup"
+	end
+	--Sem sufixo e desconhecida: "atk" é curta e termina, então o animover vem e o
+	--estado sai sozinho em vez de travar em "busy".
+	return "atk"
+end
+
+--Proxy: só PlayAnimation/PushAnimation são interceptados. Todo o resto é repassado ao
+--userdata real — com o self trocado, senão a função em C receberia a tabela do proxy.
+local function InstallAnimGuard(inst)
+	if inst._bunnyform_animguard ~= nil then
+		return
+	end
+	local real = inst.AnimState
+	local proxy = {}
+	inst._bunnyform_animguard = real
+
+	function proxy:PlayAnimation(anim, loop)
+		return real:PlayAnimation(ResolveAnim(anim), loop)
+	end
+	function proxy:PushAnimation(anim, loop)
+		return real:PushAnimation(ResolveAnim(anim), loop)
+	end
+
+	setmetatable(proxy, { __index = function(t, k)
+		local v = real[k]
+		if type(v) == "function" then
+			local forwarded = function(_, ...) return v(real, ...) end
+			rawset(t, k, forwarded) --memoiza: o __index só paga o custo uma vez por método
+			return forwarded
+		end
+		return v
+	end })
+
+	inst.AnimState = proxy
+end
+
+local function RemoveAnimGuard(inst)
+	if inst._bunnyform_animguard ~= nil then
+		inst.AnimState = inst._bunnyform_animguard
+		inst._bunnyform_animguard = nil
+	end
+end
+
+--------------------------------------------------------------------------------------
 -- Visual. Roda nos DOIS lados (servidor e cliente): o cliente precisa aplicar o
 -- bank/build por conta própria, senão a Wunny continua parecendo a Wunny na tela de
 -- quem não é o host.
@@ -163,6 +287,9 @@ local function ApplyVisual(inst)
 	local form = GetForm(inst)
 
 	if form == nil then
+		--Solta o proxy ANTES de qualquer coisa: o bank wilson tem todas as animações, e
+		--o "transform_pst" que o estado toca logo depois não está no bank do coelho.
+		RemoveAnimGuard(inst)
 		--volta pro rig do jogador. "normal_skin" é o modo padrão do skinner; sem
 		--default_build ele cai em self.inst.prefab, que é exatamente o build da Wunny.
 		inst.AnimState:SetBank("wilson")
@@ -174,6 +301,8 @@ local function ApplyVisual(inst)
 		RefreshHatSymbols(inst)
 		return
 	end
+
+	InstallAnimGuard(inst)
 
 	--HideAllClothing antes de trocar o bank: as roupas são riggadas pro esqueleto do
 	--wilson e ficariam flutuando soltas em cima do coelho.
