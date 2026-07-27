@@ -119,26 +119,43 @@ end
 -- bank/build por conta própria, senão a Wunny continua parecendo a Wunny na tela de
 -- quem não é o host.
 --------------------------------------------------------------------------------------
--- Chapéus. Ao equipar, hats.lua faz Hide("HEAD") + Show("HEAD_HAT") para todo
--- owner.isplayer (prefabs/hats.lua:68-73). O build do manrabbit não tem os símbolos
--- HEAD_HAT/HAIR_HAT, então a cabeça some e nada aparece no lugar. Na forma revertemos
--- essa troca: cabeça de coelho visível, chapéu simplesmente não renderiza — os efeitos
--- dele continuam valendo normalmente, já que o item segue equipado.
+-- Chapéus. O hats.lua tem dois caminhos: um só pra owner.isplayer, que troca HEAD por
+-- HEAD_HAT (prefabs/hats.lua:68-73), e o de mob, que apenas mostra a camada HAT com o
+-- símbolo swap_hat (prefabs/hats.lua:152-155). O build do manrabbit não tem HEAD_HAT,
+-- mas TEM HAT/swap_hat — é assim que os bunnymen do jogo aparecem de chapéu. Então na
+-- forma desfazemos só o ramo isplayer e deixamos o resto como o hats.lua montou, o que
+-- faz chapéu comum, opentop, fullhelm e chapéus de outros mods funcionarem sozinhos.
 --------------------------------------------------------------------------------------
-local function FixHatSymbols(inst)
-	if not IsInForm(inst) then
-		return
-	end
+local function ShowPlainHead(inst)
 	inst.AnimState:Show("HEAD")
 	inst.AnimState:Hide("HEAD_HAT")
 	inst.AnimState:Hide("HEAD_HAT_NOHELM")
 	inst.AnimState:Hide("HEAD_HAT_HELM")
-	--As orelhas ficam em HAIR/HAIR_NOHAT, que o hats.lua esconde ao equipar
-	--(prefabs/hats.lua:65-66) para dar lugar ao HAIR_HAT — símbolo que o coelho não tem.
-	inst.AnimState:Show("HAIR")
-	inst.AnimState:Show("HAIR_NOHAT")
-	inst.AnimState:Hide("HAIR_HAT")
-	inst.AnimState:Hide("HAT")
+end
+
+local function RefreshHatSymbols(inst)
+	if IsInForm(inst) then
+		--Não tocamos em HAT/HAIR/HAIR_HAT: as orelhas ficarem escondidas sob o chapéu é
+		--o comportamento de mob do próprio jogo, igual aos coelhos vanilla.
+		ShowPlainHead(inst)
+		return
+	end
+
+	--Voltando pro rig do jogador: em vez de adivinhar o layout (chapéu comum, opentop e
+	--fullhelm usam combinações diferentes de HEAD_HAT/HAIR/HAT), deixamos o próprio
+	--chapéu se remontar. onequipfn é idempotente pro que nos interessa — o
+	--fueled:StartConsuming() de dentro dele já checa se a task existe (fueled.lua).
+	local hat = inst.components.inventory ~= nil
+		and inst.components.inventory:GetEquippedItem(EQUIPSLOTS.HEAD)
+		or nil
+	local equippable = hat ~= nil and hat.components.equippable or nil
+	if equippable ~= nil and equippable.onequipfn ~= nil then
+		equippable.onequipfn(hat, inst)
+	else
+		--Sem chapéu (ou no cliente, que não tem components.inventory): o AnimState é
+		--replicado do servidor, então aqui basta não deixar a cabeça escondida.
+		ShowPlainHead(inst)
+	end
 end
 
 --------------------------------------------------------------------------------------
@@ -153,6 +170,8 @@ local function ApplyVisual(inst)
 			inst.components.skinner:SetSkinMode("normal_skin")
 		end
 		inst.DynamicShadow:SetSize(1.3, .6)
+		--Depois do SetSkinMode, senão o skinner remonta por cima do que arrumamos.
+		RefreshHatSymbols(inst)
 		return
 	end
 
@@ -169,7 +188,7 @@ local function ApplyVisual(inst)
 		inst.AnimState:SetBuild(form.build)
 	end
 	inst.DynamicShadow:SetSize(unpack(form.shadow))
-	FixHatSymbols(inst)
+	RefreshHatSymbols(inst)
 end
 
 local function OnBunnyFormDirty(inst)
@@ -347,10 +366,15 @@ local function SetupNetvars(inst)
 	inst:ListenForEvent("bunnyformdirty", OnBunnyFormDirty)
 
 	--Equipar um chapéu JÁ estando na forma refaz o Hide("HEAD") do hats.lua, então
-	--reaplicamos depois. FixHatSymbols sai fora sozinho se não estiver em forma, que é
-	--o que queremos fora dela.
-	inst:ListenForEvent("equip", function(i) FixHatSymbols(i) end)
-	inst:ListenForEvent("unequip", function(i) FixHatSymbols(i) end)
+	--reaplicamos depois. Fora da forma não mexemos: o hats.lua já deixou certo, e chamar
+	--onequipfn de novo aqui seria trabalho à toa.
+	local function OnEquipChanged(i)
+		if IsInForm(i) then
+			RefreshHatSymbols(i)
+		end
+	end
+	inst:ListenForEvent("equip", OnEquipChanged)
+	inst:ListenForEvent("unequip", OnEquipChanged)
 
 	inst.IsInBunnyForm = IsInForm
 end
