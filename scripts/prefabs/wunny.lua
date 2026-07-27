@@ -967,6 +967,12 @@ local function onload(inst, data)
 			end
 		end
 	end
+
+	-- No FIM de propósito: o restore da forma bunnyman precisa acontecer depois do
+	-- onbecamehuman e do sanity:SetPercent acima, que sobrescrevem walkspeed e o skin
+	-- mode. Ele mesmo ainda se adia um frame — ver o comentário grande em
+	-- wunny_bunnyform.lua. Com data == nil (OnNewSpawn) não faz nada.
+	BunnyForm.OnLoad(inst, data)
 end
 
 --------------------------------------------------------------------------------------
@@ -2004,6 +2010,8 @@ local function OnSave(inst, data)
 
 	data.wortox_freehops = inst._wortox_freesoulhop_counter
 	data.wortox_soulhopcost = inst._wortox_soulhop_cost
+
+	BunnyForm.OnSave(inst, data)
 end
 
 local function OnLightningStrike(inst)
@@ -2091,7 +2099,13 @@ local function OnSanityDelta(inst, data)
 		inst.components.beard.prize = "beardhair"
 		-- inst:AddTag("playermonster")
 		-- inst:AddTag("monster")
-		inst.components.skinner:SetSkinMode("beardlord_skin", "wilson")
+		-- Na forma bunnyman o build tem de continuar o do coelho. Este SetSkinMode força
+		-- "wilson", e o bank ainda é "manrabbit": rig do wilson em bank de coelho é a
+		-- Wunny invisível. Cruzar o limiar de sanidade enquanto transformada bastava pra
+		-- reproduzir isso, sem save/load nenhum.
+		if not BunnyForm.IsInForm(inst) then
+			inst.components.skinner:SetSkinMode("beardlord_skin", "wilson")
+		end
 		if inst.components.eater ~= nil then
 			-- inst.components.eater:SetDiet({ FOODGROUP.OMNI }, { FOODTYPE.MEAT, FOODTYPE.GOODIES })
 			inst.components.eater:SetStrongStomach(true)
@@ -2139,7 +2153,10 @@ local function OnSanityDelta(inst, data)
 		-- inst:RemoveTag("monster")
 
 		-- inst.components.sanityaura.aura = 0
-		inst.components.skinner:SetSkinMode("normal_skin", "wilson")
+		-- mesmo motivo do SetSkinMode do ramo de cima
+		if not BunnyForm.IsInForm(inst) then
+			inst.components.skinner:SetSkinMode("normal_skin", "wilson")
+		end
 		if inst.components.eater ~= nil then
 			-- inst.components.eater:SetDiet({ FOODGROUP.VEGETARIAN }, { FOODGROUP.VEGETARIAN, FOODTYPE.GOODIES })
 			inst.components.eater:SetStrongStomach(false)

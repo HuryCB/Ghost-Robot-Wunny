@@ -95,14 +95,14 @@ Assets = {
 
     Asset("IMAGE", "images/inventoryimages/rabbithole.tex"),
 
+    -- Ícone de minimapa das tocas (rabbithole vanilla e wunny_burrow). NÃO existe
+    -- ícone de toca no atlas de minimapa do jogo: data/minimap/minimap_data.xml só
+    -- tem "rabbit_house.png" e "rabbittrap.png" — o rabbithole vanilla nem tem
+    -- MiniMapEntity. Por isso o ícone é arte do mod, e um ícone de mod precisa das
+    -- TRÊS coisas: IMAGE + ATLAS aqui, AddMinimapAtlas do .xml (logo abaixo), e o
+    -- SetIcon usando o NOME DO ELEMENTO do xml, que é "rabbit_hole.tex".
     Asset("IMAGE", "images/rabbit_hole.tex"),
     Asset("ATLAS", "images/rabbit_hole.xml"),
-
-    -- gera o ícone de minimapa "rabbit_hole.png" a partir do próprio build
-    -- vanilla (mesmo símbolo "icon" usado no menu de construção), pro
-    -- rabbithole vanilla também aparecer no mapa (ver AddPrefabPostInit
-    -- "rabbithole" e wunny_burrow.lua)
-    Asset("MINIMAP_IMAGE", "rabbit_hole"),
 
     Asset("ATLAS", "images/inventoryimages/birchnuthat.xml"),
 
@@ -139,6 +139,9 @@ Assets = {
 
 
 }
+-- Sem esta linha o SetIcon("rabbit_hole.tex") não resolve para nada e a toca
+-- simplesmente não desenha no mapa, sem erro no log.
+AddMinimapAtlas("images/rabbit_hole.xml")
 AddMinimapAtlas("images/map_icons/cinnabunnfarm.xml")
 AddMinimapAtlas("images/map_icons/wunny.xml")
 AddMinimapAtlas("images/map_icons/coolerpack.xml")
@@ -1409,7 +1412,10 @@ AddPrefabPostInit("rabbithole", function(inst)
 
     inst:DoTaskInTime(0, function(inst)
         inst.hiddenglobalicon = GLOBAL.SpawnPrefab("globalmapiconseeable")
-        inst.hiddenglobalicon.MiniMapEntity:SetIcon("rabbit_hole.png")
+        -- ".tex" (nome do elemento em images/rabbit_hole.xml), não ".png": ".png" é a
+        -- convenção dos ícones que já vêm no atlas do jogo, e não existe
+        -- "rabbit_hole.png" lá. Ver o bloco de Assets no topo deste arquivo.
+        inst.hiddenglobalicon.MiniMapEntity:SetIcon("rabbit_hole.tex")
         inst.hiddenglobalicon.MiniMapEntity:SetPriority(5)
         inst.hiddenglobalicon:TrackEntity(inst)
     end)

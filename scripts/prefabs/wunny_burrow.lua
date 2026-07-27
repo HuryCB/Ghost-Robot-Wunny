@@ -10,7 +10,10 @@
 local assets =
 {
 	Asset("ANIM", "anim/rabbit_hole.zip"),
-	Asset("MINIMAP_IMAGE", "rabbit_hole"),
+	-- Ícone de mapa: arte do mod, não do jogo (não existe ícone de toca no atlas de
+	-- minimapa vanilla). O AddMinimapAtlas correspondente está em modmain.lua.
+	Asset("IMAGE", "images/rabbit_hole.tex"),
+	Asset("ATLAS", "images/rabbit_hole.xml"),
 }
 
 local prefabs =
@@ -25,7 +28,9 @@ local prefabs =
 -- o mecanismo real usado por wormhole/wx78_backupbody/etc. pra aparecerem no mapa.
 local function CreateHiddenGlobalIcon(inst)
 	inst.hiddenglobalicon = SpawnPrefab("globalmapiconseeable")
-	inst.hiddenglobalicon.MiniMapEntity:SetIcon("rabbit_hole.png")
+	-- ".tex" = nome do elemento em images/rabbit_hole.xml. Com ".png" o jogo procura
+	-- no atlas de minimapa dele, onde não existe ícone de toca, e não desenha nada.
+	inst.hiddenglobalicon.MiniMapEntity:SetIcon("rabbit_hole.tex")
 	inst.hiddenglobalicon.MiniMapEntity:SetPriority(5)
 	inst.hiddenglobalicon:TrackEntity(inst)
 end
@@ -49,7 +54,7 @@ local function fn()
 	inst.entity:AddNetwork()
 	inst.entity:AddMiniMapEntity()
 
-	inst.MiniMapEntity:SetIcon("rabbit_hole.png")
+	inst.MiniMapEntity:SetIcon("rabbit_hole.tex")
 	inst.MiniMapEntity:SetPriority(5)
 
 	inst.AnimState:SetBank("rabbithole")

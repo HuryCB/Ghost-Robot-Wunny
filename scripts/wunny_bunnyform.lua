@@ -488,6 +488,85 @@ local function OnBecameGhost(inst)
 end
 
 --------------------------------------------------------------------------------------
+-- Persistência (save/load). Chamado pelo OnSave/onload de prefabs/wunny.lua.
+--------------------------------------------------------------------------------------
+local function OnSave(inst, data)
+	local _, formname = GetForm(inst)
+	if formname ~= nil then
+		--Grava o NOME e não o índice do netvar: o índice depende de FORM_ORDER, e a nota
+		--lá em cima já avisa que mexer na ordem invalidaria saves. Com o nome, reordenar
+		--FORM_ORDER deixa de ser problema.
+		data.bunnyform = formname
+	end
+end
+
+--------------------------------------------------------------------------------------
+-- POR QUE O RESTORE É ADIADO UM FRAME (e não feito na hora)
+--
+-- Não é cautela genérica: três coisas rodam DEPOIS desta função e desfazem a forma se
+-- ela já estiver aplicada.
+--
+-- 1) Skinner:OnLoad (components/skinner.lua:814) termina em SetSkinName -> SetSkinMode()
+--    SEM o parâmetro default_build. A linha que decide o build é
+--        base_skin = self.skin_data[skintype] or default_build or self.inst.prefab
+--    e como a Wunny não tem skin registrada pra "bunnyman_skin", isso cai em
+--    self.inst.prefab = "wunny": build do rig do wilson com o bank "manrabbit" ainda
+--    posto. É a Wunny invisível — o próprio skinner.lua:587 imprime
+--    "Invisible werebeaver is probably about to happen" prevendo esse caso.
+--
+-- 2) onbecamehuman (wunny.lua:729) escreve locomotor.walkspeed = 6 na mão, por cima da
+--    velocidade da forma.
+--
+-- 3) o onload da Wunny restaura a sanidade com sanity:SetPercent, que empurra
+--    "sanitydelta" -> OnSanityDelta -> SetSkinMode(..., "wilson"), clobber igual ao (1).
+--
+-- Adiar também evita corromper _bunnyform_prev: se chamássemos ApplyFormEffects agora e
+-- de novo depois, a segunda captura leria os valores DA FORMA como se fossem os normais,
+-- e reverter deixaria a Wunny com dano/velocidade de coelho pra sempre. Aplicando uma
+-- única vez, no fim de tudo, a captura pega os valores certos.
+--------------------------------------------------------------------------------------
+local function DoLoadRestore(inst)
+	local formname = inst._bunnyform_pendingload
+	inst._bunnyform_pendingload = nil
+
+	if formname == nil or FORMS[formname] == nil or inst._bunnyform == nil then
+		return
+	end
+	--Um save feito morto/fantasma não pode ressuscitar coelho. O OnBecameGhost já zera a
+	--forma antes de salvar, então isto é só a rede de segurança pra save antigo.
+	if inst:HasTag("playerghost")
+		or (inst.components.health ~= nil and inst.components.health:IsDead()) then
+		return
+	end
+
+	--CommitForm e não o estado bunnyform_transform: carregar não deve tocar a animação de
+	--transformação nem tirar o controle do jogador. Ele acorda já sendo coelho.
+	CommitForm(inst, formname)
+
+	--O sg ficou parado num estado do bank "wilson"; sem isto a Wunny fica travada numa
+	--animação que o bank do coelho não tem. Mesma linha do onpreload do woodie
+	--(woodie.lua:1610).
+	if inst.sg ~= nil then
+		inst.sg:GoToState("idle")
+	end
+end
+
+local function OnLoad(inst, data)
+	local formname = data ~= nil and data.bunnyform or nil
+	if formname == nil then
+		return
+	end
+	if FORMS[formname] == nil then
+		--Forma que saiu do mod numa atualização: acorda como Wunny normal, em vez de
+		--travar numa forma que não existe mais.
+		print("[wunny/bunnyform] forma salva desconhecida, ignorando:", tostring(formname))
+		return
+	end
+	inst._bunnyform_pendingload = formname
+	inst:DoTaskInTime(0, DoLoadRestore)
+end
+
+--------------------------------------------------------------------------------------
 -- Setup.
 --------------------------------------------------------------------------------------
 local function SetupNetvars(inst)
@@ -986,4 +1065,6 @@ return {
 	Transform       = Transform,
 	Revert          = Revert,
 	IsInForm        = IsInForm,
+	OnSave          = OnSave,
+	OnLoad          = OnLoad,
 }
