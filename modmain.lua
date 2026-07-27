@@ -375,7 +375,9 @@ TUNING.WUNNY_BURROW_MIN_TRAVEL_DIST = 3    -- distância mínima pra valer a via
 TUNING.WUNNY_BURROW_MAP_SELECT_RADIUS = 4  -- raio de tolerância do clique no mapa em torno do ícone da toca
 TUNING.WUNNY_BURROWDASH_SPEED_MULT = 1.6   -- multiplicador de velocidade da toca-relâmpago (fome sobe na mesma proporção)
 TUNING.WUNNY_JUMPWALL_LANDING_DIST = 1.3   -- distância do centro da parede até o ponto de aterrissagem do outro lado
-TUNING.WUNNY_JUMPWALL_SPEED = 7            -- velocidade do voo do salto de parede, em unidades/s (tempo no ar = distância / isto)
+TUNING.WUNNY_JUMPWALL_SPEED = 7            -- velocidade-base do voo, em unidades/s (tempo no ar = distância / isto); ainda multiplicada pelo WUNNY_JUMP_RATE
+TUNING.WUNNY_JUMP_RATE = 1.5               -- aceleração global do salto: encurta agachamento, voo e pouso E acelera as animações na mesma proporção
+TUNING.WUNNY_JUMPFREE_DIST = 4.5           -- alcance do salto livre (tecla V), em unidades; encurta sozinho se o ponto cheio não for pisável
 TUNING.WUNNY_BUNNYFOLLOWER_DAMAGE = 1      -- dano do coelho selvagem domesticado (cenoura) no combate "bate e foge"
 -- TUNING.WUNNY_KING_
 -- TUNING.SHADOWBUNNYMAN_ATTACK_PERIOD =
@@ -1634,6 +1636,37 @@ GLOBAL.TheInput:AddKeyDownHandler(GLOBAL.KEY_R, function()
     end
     if player:HasTag("wunny") and player.ToggleBurrowDash ~= nil then
         player:ToggleBurrowDash()
+    end
+end)
+
+-- Tecla V: SALTO LIVRE — o mesmo pulo do clique direito na parede, mas sem parede
+-- nenhuma, na direção em que a Wunny está virada. Pensado para uso constante e em
+-- combate, daí ser tecla e não ação de clique: não precisa de alvo, não abre menu e não
+-- disputa com o clique de ataque.
+--
+-- POR QUE RPC E NÃO CHAMAR DIRETO como o toggle do KEY_R faz logo acima: aquele toggle
+-- funciona porque em servidor local o ThePlayer É a entidade do servidor. Num servidor
+-- dedicado (e este mod é all_clients_require_mod) o cliente só tem o "replica", que não
+-- tem sg nem Physics — chamar direto ali não faria nada, ou pior, mexeria numa cópia
+-- local e dessincronizaria. O RPC é o único caminho em que o servidor decide.
+AddModRPCHandler(modname, "wunny_jumpfree", function(player)
+    -- Toda a validação vive no servidor, dentro de TryFreeJump: o cliente pode mandar
+    -- este RPC quando quiser, inclusive adulterado, e o pior que consegue é um "false".
+    GLOBAL.require("wunny_jumpwall").TryFreeJump(player)
+end)
+
+GLOBAL.TheInput:AddKeyDownHandler(GLOBAL.KEY_V, function()
+    local player = GLOBAL.ThePlayer
+    -- HasInputFocus: sem isto, escrever "voar" no chat sai saltando pela base.
+    if player == nil or (player.HUD ~= nil and player.HUD:HasInputFocus()) then
+        return
+    end
+    if player:HasTag("wunny") then
+        -- SendModRPCToServer/GetModRPC, e sem GLOBAL: os dois são injetados no ambiente do
+        -- modmain (modutil.lua:887 e :906). "SendModRPC" + "MOD_RPC[...]" é a forma do Don't
+        -- Starve single-player; no DST a primeira não existe e a segunda é legacy — o
+        -- próprio modutil.lua:902 manda usar GetModRPC.
+        SendModRPCToServer(GetModRPC(modname, "wunny_jumpfree"))
     end
 end)
 

@@ -48,13 +48,33 @@ local LANDING_DIST = TUNING.WUNNY_JUMPWALL_LANDING_DIST or 1.3
 
 --Velocidade do voo, em unidades/segundo. O tempo no ar sai de distância/velocidade, com
 --um piso para o salto não ficar mais curto que a animação.
-local JUMP_SPEED = TUNING.WUNNY_JUMPWALL_SPEED or 7
+--Note que ele é multiplicado pelo RATE abaixo: assim o RATE é o ÚNICO botão de "quão
+--rápido é o salto", em vez de a aceleração ficar metade aqui e metade lá.
+local JUMP_SPEED_BASE = TUNING.WUNNY_JUMPWALL_SPEED or 7
+
+--Aceleração global do salto. Mexer só no JUMP_SPEED_BASE NÃO deixa o salto mais rápido de
+--verdade: o voo em si já era a menor parte da duração. O que domina são o agachamento
+--(LIFTOFF), o piso de tempo no ar (MIN_FLIGHT) e a animação de pouso (boat_jump_pst,
+--que roda inteira antes de devolver o controle). Por isso este fator entra em QUATRO
+--lugares — os três tempos abaixo e o SetDeltaTimeMultiplier das animações. Sem o
+--multiplicador de animação os tempos encurtariam mas a arte continuaria no ritmo antigo,
+--e o pouso ficaria cortado no meio.
+local RATE = TUNING.WUNNY_JUMP_RATE or 1.5
+
+local JUMP_SPEED = JUMP_SPEED_BASE * RATE
 
 --A animação agacha antes de sair do chão; largar o movimento no frame 0 faz a Wunny
 --deslizar durante o agachamento. O vanilla usa o mesmo atraso de 4 frames
 --(start_embarking_pre_frame em SGwilson.lua:28557).
-local LIFTOFF = 4 * FRAMES
-local MIN_FLIGHT = 8 * FRAMES
+local LIFTOFF = 4 * FRAMES / RATE
+local MIN_FLIGHT = 8 * FRAMES / RATE
+
+--Salto livre (tecla de atalho): distância à frente, sem parede nenhuma envolvida.
+local FREE_DIST = TUNING.WUNNY_JUMPFREE_DIST or 4.5
+--Se o ponto cheio não serve (água, buraco, coisa no caminho), encurta o salto neste passo
+--em vez de simplesmente cancelar. É o que faz a tecla responder perto de obstáculos em
+--vez de parecer engasgada.
+local FREE_STEP = .5
 
 --Raio de busca por obstáculo no ponto de pouso. Um pouco maior que o raio de física do
 --jogador (.5), para não pousar encostado.
@@ -62,6 +82,29 @@ local LANDING_CLEARANCE = .7
 
 local BLOCKER_ONEOF_TAGS = { "wall", "blocker" }
 local BLOCKER_CANT_TAGS = { "INLIMBO", "FX", "DECOR", "player" }
+
+--------------------------------------------------------------------------------------
+-- O ponto de pouso serve? Chão pisável e sem obstáculo em cima.
+--
+-- Extraído de GetLanding para o salto livre usar o MESMO critério: se os dois
+-- divergissem, dá para acabar com uma tecla que atravessa parede em situação em que o
+-- clique na parede se recusa a saltar.
+--------------------------------------------------------------------------------------
+local function IsLandingClear(landx, landz, ignore1, ignore2)
+	if not TheWorld.Map:IsPassableAtPoint(landx, 0, landz, false) then
+		return false
+	end
+
+	local blockers = TheSim:FindEntities(landx, 0, landz, LANDING_CLEARANCE,
+		nil, BLOCKER_CANT_TAGS, BLOCKER_ONEOF_TAGS)
+	for _, v in ipairs(blockers) do
+		if v ~= ignore1 and v ~= ignore2 then
+			return false
+		end
+	end
+
+	return true
+end
 
 --------------------------------------------------------------------------------------
 -- Geometria. Devolve landx, landz, ou nil se o salto não é possível.
@@ -89,23 +132,111 @@ local function GetLanding(doer, wall)
 	local landx = wx + dirx * LANDING_DIST
 	local landz = wz + dirz * LANDING_DIST
 
-	if not TheWorld.Map:IsPassableAtPoint(landx, 0, landz, false) then
-		return nil
-	end
-
 	--Paredes se constroem em grade de 1 unidade, então numa parede DUPLA o pouso a 1.3
 	--do centro da primeira cai dentro da segunda. Com o Teleport antigo isso já prendia
 	--a Wunny; agora prenderia no momento em que a colisão voltasse. Barrar o salto é o
 	--comportamento certo: parede grossa continua sendo parede.
-	local blockers = TheSim:FindEntities(landx, 0, landz, LANDING_CLEARANCE,
-		nil, BLOCKER_CANT_TAGS, BLOCKER_ONEOF_TAGS)
-	for _, v in ipairs(blockers) do
-		if v ~= wall and v ~= doer then
-			return nil
-		end
+	if not IsLandingClear(landx, landz, wall, doer) then
+		return nil
 	end
 
 	return landx, landz
+end
+
+--------------------------------------------------------------------------------------
+-- Geometria do SALTO LIVRE. Sem alvo: a direção é simplesmente para onde a Wunny está
+-- virada, e a distância é fixa.
+--
+-- Diferente do salto de parede, aqui o ponto cheio falhando não cancela: encurta e tenta
+-- de novo. O salto de parede tem um destino único e correto (o outro lado); o livre é um
+-- deslocamento, e um deslocamento menor continua sendo uma resposta útil à tecla.
+--
+-- Só o DESTINO é validado, nunca o meio do caminho. Isso é intencional e é o que torna a
+-- tecla capaz de pular por cima de água, buraco de riftlands ou parede — durante o voo a
+-- máscara de colisão já é só COLLISION.GROUND, então não há nada para atravessar.
+--------------------------------------------------------------------------------------
+local function GetFreeLanding(doer)
+	if doer == nil or not doer:IsValid() then
+		return nil
+	end
+
+	local x, y, z = doer.Transform:GetWorldPosition()
+	--Convenção do DST: a rotação do Transform é em graus e o eixo z é invertido em
+	--relação ao seno (mesma conta de GetHopDistanceAndVel em SGwilson).
+	local rot = doer.Transform:GetRotation() * DEGREES
+	local dirx, dirz = math.cos(rot), -math.sin(rot)
+
+	local dist = FREE_DIST
+	while dist >= FREE_STEP do
+		local landx, landz = x + dirx * dist, z + dirz * dist
+		if IsLandingClear(landx, landz, doer, nil) then
+			return landx, landz
+		end
+		dist = dist - FREE_STEP
+	end
+
+	return nil
+end
+
+--------------------------------------------------------------------------------------
+-- Pode saltar livre AGORA? Roda no servidor, em cima do RPC — o cliente não é
+-- autoridade nenhuma aqui.
+--
+-- As restrições de mãos ocupadas / montaria são as MESMAS do salto de parede, e pela
+-- mesma razão de animação (ver o comentário de WunnyCanJumpWall em modmain.lua). A
+-- diferença é que lá a checagem usa os replicas (código de cliente, para montar o menu
+-- do clique direito) e aqui usa os componentes de verdade.
+--------------------------------------------------------------------------------------
+local function CanFreeJump(inst)
+	if inst == nil or not inst:IsValid()
+		or not inst:HasTag("wunny")
+		or inst:HasTag("playerghost")
+		or inst.sg == nil then
+		return false
+	end
+
+	--"busy" cobre de uma vez ataque em curso, comer, construir, congelado, preso em teia,
+	--nocauteado e o próprio salto — inclusive impede que a tecla martelada reinicie o voo
+	--no meio dele. É também o motivo de NÃO haver cooldown próprio: a duração do estado
+	--já é o limite natural de cadência.
+	if inst.sg:HasStateTag("busy") or inst.sg:HasStateTag("nopredict") then
+		return false
+	end
+
+	if inst.components.health ~= nil and inst.components.health:IsDead() then
+		return false
+	end
+
+	local inv = inst.components.inventory
+	if inv ~= nil and inv:IsHeavyLifting() then
+		return false
+	end
+
+	local rider = inst.components.rider
+	if rider ~= nil and rider:IsRiding() then
+		return false
+	end
+
+	return true
+end
+
+--------------------------------------------------------------------------------------
+local function TryFreeJump(inst)
+	if not CanFreeJump(inst) then
+		return false
+	end
+
+	local landx, landz = GetFreeLanding(inst)
+	if landx == nil then
+		return false
+	end
+
+	--O salto livre não executa ação nenhuma ao pousar, então uma ação bufferizada
+	--pendente (um clique dado no mesmo instante) tem que sair da frente aqui, senão ela
+	--dispararia sozinha ao fim do voo, longe do alvo original.
+	inst:ClearBufferedAction()
+	inst.sg:GoToState("wunny_jumpwall", { x = landx, z = landz })
+	return true
 end
 
 --------------------------------------------------------------------------------------
@@ -123,14 +254,26 @@ local function PatchStategraph(sg)
 		--deste mod já usam, pela mesma razão.
 		tags = { "busy", "nointerrupt", "pausepredict", "nomorph", "nosleep", "jumping" },
 
-		onenter = function(inst)
+		--dest ~= nil => SALTO LIVRE (tecla), destino já calculado e validado por
+		--TryFreeJump. dest == nil => salto de parede, destino vem da ação bufferizada.
+		--O estado é um só de propósito: o voo, o desligamento de colisão, o Teleport de
+		--correção e as guardas anti-travamento são idênticos nos dois casos, e a única
+		--diferença real (executar ou não a ação no pouso) cabe num if.
+		onenter = function(inst, dest)
 			inst.components.locomotor:Stop()
 			if inst.components.playercontroller ~= nil then
 				inst.components.playercontroller:RemotePausePrediction()
 			end
 
-			local act = inst:GetBufferedAction()
-			local landx, landz = GetLanding(inst, act ~= nil and act.target or nil)
+			local landx, landz
+			if dest ~= nil then
+				inst.sg.statemem.free = true
+				landx, landz = dest.x, dest.z
+			else
+				local act = inst:GetBufferedAction()
+				landx, landz = GetLanding(inst, act ~= nil and act.target or nil)
+			end
+
 			if landx == nil then
 				--A parede caiu, ou o outro lado deixou de ser válido, entre o clique e
 				--aqui. Nada de animação: só devolve o controle.
@@ -143,6 +286,9 @@ local function PatchStategraph(sg)
 			inst.sg.statemem.landz = landz
 			inst:ForceFacePoint(landx, 0, landz)
 
+			--Os tempos deste estado já estão divididos por RATE; sem isto a arte ficaria
+			--no ritmo antigo e o voo terminaria antes do agachamento acabar de tocar.
+			inst.AnimState:SetDeltaTimeMultiplier(RATE)
 			inst.AnimState:PlayAnimation("boat_jump_pre")
 			--Em loop: quem termina o voo é o ontimeout, calculado pela distância. Assim a
 			--duração da animação e a do deslocamento não precisam bater.
@@ -178,7 +324,9 @@ local function PatchStategraph(sg)
 			--exatamente no ponto calculado, e errar para trás deixaria a Wunny em cima da
 			--parede quando a colisão voltasse.
 			inst.Physics:Teleport(inst.sg.statemem.landx, 0, inst.sg.statemem.landz)
-			inst:PerformBufferedAction()
+			if not inst.sg.statemem.free then
+				inst:PerformBufferedAction()
+			end
 			inst.sg.statemem.landed = true
 			--A tag "jumping" faz o SGwilson ADIAR em vez de interromper: "knockedout"
 			--(SGwilson.lua:2245) e a sobrecarga de almas (1965) guardam o destino em
@@ -190,6 +338,11 @@ local function PatchStategraph(sg)
 
 		onexit = function(inst)
 			inst.Physics:Stop()
+			--Sempre, inclusive na saída antecipada em que nem PlayAnimation aconteceu:
+			--deixar o multiplicador em RATE contaminaria TODA animação seguinte do
+			--jogador. O onenter do _pst reaplica logo em seguida (o onexit do estado
+			--antigo roda antes do onenter do novo).
+			inst.AnimState:SetDeltaTimeMultiplier(1)
 			if inst.sg.statemem.collisionmask ~= nil then
 				inst.Physics:SetCollisionMask(inst.sg.statemem.collisionmask)
 				if not inst.sg.statemem.landed and inst.sg.statemem.landx ~= nil then
@@ -211,11 +364,16 @@ local function PatchStategraph(sg)
 		tags = { "busy", "pausepredict", "nomorph" },
 
 		onenter = function(inst, queued_post_land_state)
+			inst.AnimState:SetDeltaTimeMultiplier(RATE)
 			inst.AnimState:PlayAnimation("boat_jump_pst")
 			inst.sg.statemem.nextstate = queued_post_land_state or "idle"
 			--Guarda anti-travamento, igual à dos estados de transformação: se o animover
 			--não vier, o ontimeout devolve o controle.
-			inst.sg:SetTimeout(inst.AnimState:GetCurrentAnimationLength() + 8 * FRAMES)
+			--
+			--GetCurrentAnimationLength devolve a duração NOMINAL, sem o multiplicador —
+			--dividir por RATE é o que mantém isto sendo uma guarda de segurança em vez de
+			--virar o que realmente encerra o estado antes do animover chegar.
+			inst.sg:SetTimeout(inst.AnimState:GetCurrentAnimationLength() / RATE + 8 * FRAMES)
 		end,
 
 		events = {
@@ -229,6 +387,10 @@ local function PatchStategraph(sg)
 		ontimeout = function(inst)
 			inst.sg:GoToState(inst.sg.statemem.nextstate or "idle")
 		end,
+
+		onexit = function(inst)
+			inst.AnimState:SetDeltaTimeMultiplier(1)
+		end,
 	}
 
 	sg.actionhandlers[ACTIONS.WUNNY_JUMPWALL] =
@@ -237,5 +399,8 @@ end
 
 return {
 	GetLanding      = GetLanding,
+	GetFreeLanding  = GetFreeLanding,
+	CanFreeJump     = CanFreeJump,
+	TryFreeJump     = TryFreeJump,
 	PatchStategraph = PatchStategraph,
 }
