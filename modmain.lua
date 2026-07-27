@@ -376,7 +376,7 @@ TUNING.WUNNY_BURROW_MAP_SELECT_RADIUS = 4  -- raio de tolerância do clique no m
 TUNING.WUNNY_BURROWDASH_SPEED_MULT = 1.6   -- multiplicador de velocidade da toca-relâmpago (fome sobe na mesma proporção)
 TUNING.WUNNY_JUMPWALL_LANDING_DIST = 1.3   -- distância do centro da parede até o ponto de aterrissagem do outro lado
 TUNING.WUNNY_JUMPWALL_SPEED = 7            -- velocidade-base do voo, em unidades/s (tempo no ar = distância / isto); ainda multiplicada pelo WUNNY_JUMP_RATE
-TUNING.WUNNY_JUMP_RATE = 1.5               -- aceleração global do salto: encurta agachamento, voo e pouso E acelera as animações na mesma proporção
+TUNING.WUNNY_JUMP_RATE = 2                 -- aceleração global do salto: encurta agachamento, voo e pouso E acelera as animações na mesma proporção
 TUNING.WUNNY_JUMPFREE_DIST = 4.5           -- alcance do salto livre (tecla V), em unidades; encurta sozinho se o ponto cheio não for pisável
 TUNING.WUNNY_BUNNYFOLLOWER_DAMAGE = 1      -- dano do coelho selvagem domesticado (cenoura) no combate "bate e foge"
 -- TUNING.WUNNY_KING_
