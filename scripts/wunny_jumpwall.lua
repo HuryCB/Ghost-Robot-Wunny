@@ -361,12 +361,45 @@ local function PatchStategraph(sg)
 
 	sg.states["wunny_jumpwall_pst"] = State{
 		name = "wunny_jumpwall_pst",
-		tags = { "busy", "pausepredict", "nomorph" },
+		--SEM "busy", e com "autopredict". Era o "busy" o verdadeiro custo de "voltar a
+		--andar depois do pulo": o locomote do jogador é DESCARTADO enquanto ele está
+		--presente (SGwilson.lua:1751 sai na hora, e PlayerController:CanLocomote também
+		--barra no cliente), então quem estava com a direção segurada ficava parado a
+		--animação de pouso inteira e só então começava o run_start.
+		--
+		--Acelerar a animação não resolvia isso: encurtava a espera, não a eliminava.
+		--
+		--"autopredict" é o que a hop_pst vanilla usa (commonstates.lua:913) — deixa o
+		--cliente voltar a prever movimento sozinho em vez de esperar o servidor, que é a
+		--outra metade da latência percebida.
+		--
+		--Consequência aceita: o pouso agora é interrompível (um ataque, um susto). Para um
+		--recurso de mobilidade de combate isso é o comportamento desejado, não um bug — e o
+		--estado de VOO acima continua "busy" + "nointerrupt", que é onde a interrupção
+		--realmente causaria dano (jogador preso dentro da parede).
+		--"pausepredict" saiu junto: ele é o OPOSTO de "autopredict" (builder.lua:630 e
+		--wortox_nabbag.lua:295 leem a tag de estado como "não deixe o cliente prever"), e
+		--manter os dois seria pedir e negar previsão no mesmo estado. A hop_pst vanilla
+		--também só tem "autopredict". Quem precisa de pausepredict é o estado de VOO, que
+		--é server-only de verdade.
+		tags = { "autopredict", "nomorph" },
 
+		--Quem retoma a corrida é o PlayerController, não este estado: no primeiro tick em
+		--que ele vê o jogador fora de "busy", DoDirectWalking (playercontroller.lua:3062)
+		--reaplica a direção que continua pressionada e empurra o locomote sozinho, e o
+		--handler global (SGwilson.lua:1747) leva para run_start.
+		--
+		--NÃO tente adiantar isso com um WantsToMoveForward() aqui no onenter: a flag é
+		--falsa neste ponto, garantido. O onenter do voo chamou locomotor:Stop(), que zera
+		--wantstomoveforward (locomotor.lua:1100), e enquanto o voo estava "busy" o próprio
+		--PlayerController chamou DoDirectStopWalking a cada tick (playercontroller.lua:3044)
+		--em vez de reaplicar a direção. Ou seja, um teste de intenção de movimento aqui é
+		--sempre falso — seria código morto disfarçado de otimização.
 		onenter = function(inst, queued_post_land_state)
+			inst.sg.statemem.nextstate = queued_post_land_state or "idle"
+
 			inst.AnimState:SetDeltaTimeMultiplier(RATE)
 			inst.AnimState:PlayAnimation("boat_jump_pst")
-			inst.sg.statemem.nextstate = queued_post_land_state or "idle"
 			--Guarda anti-travamento, igual à dos estados de transformação: se o animover
 			--não vier, o ontimeout devolve o controle.
 			--
