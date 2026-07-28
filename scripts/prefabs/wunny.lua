@@ -376,8 +376,11 @@ local function moisturetrack_update(inst)
 
 	-- Send a message for the UI.
 	inst:PushEvent("do_robot_spark")
-	if inst.player_classified ~= nil then
-		inst.player_classified.uirobotsparksevent:push()
+	-- O net_event mora no wx78_classified (wx78_classified.lua:486), NÃO no
+	-- player_classified genérico -- é ele que reenvia "do_robot_spark" nos
+	-- clientes remotos pra animar o widget wx78moisturemeter.
+	if inst.wx78_classified ~= nil then
+		inst.wx78_classified.uirobotsparksevent:push()
 	end
 end
 
