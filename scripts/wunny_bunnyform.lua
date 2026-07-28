@@ -49,41 +49,104 @@
 	locomoção/sono/dano é o que torna isto viável sem arte nova.
 
 	--------------------------------------------------------------------------------
-	ESTADO DESTE ARQUIVO: PILOTO
+	ESTADO DESTE ARQUIVO
 	--------------------------------------------------------------------------------
-	Só a forma base ("bunnyman", build manrabbit_build). As outras seis variantes do
-	mod entram como novas entradas em FORMS — a arquitetura já é por tabela. Note que
-	existem só 4 builds distintos (manrabbit_build, daymanrabbit_build,
-	everythingmanrabbit_build, shadowmanrabbit_build), então base/new/dwarf/ultra
-	precisarão de escala/cor pra não ficarem visualmente idênticas.
+	Quatro formas jogáveis, uma por build de arte existente: bunnyman (manrabbit_build),
+	daybunnyman, everythingbunnyman e shadowbunnyman. new/dwarf/ultra ficam de FORA por
+	reusarem manrabbit_build — seriam desbloqueios visualmente idênticos ao base. Ver o
+	comentário sobre isso logo acima de FORMS.
+
+	Acesso: a casa da variante destrava a forma e define qual delas a tecla B ativa
+	(ação WUNNY_BUNNYFORM_ATTUNE em modmain.lua); a tecla entra e sai. Ver o bloco
+	"DESBLOQUEIO E SELEÇÃO".
 ]]
 
-local FORMS = {
-	bunnyman = {
+--------------------------------------------------------------------------------------
+-- QUAIS VARIANTES VIRAM FORMA JOGÁVEL, E POR QUÊ SÓ ESTAS QUATRO
+--
+-- O mod tem sete bunnymen, mas só QUATRO builds de arte distintos:
+--     manrabbit_build, daymanrabbit_build, everythingmanrabbit_build, shadowmanrabbit_build
+-- "newbunnyman", "dwarfbunnyman" e "ultrabunnyman" reusam manrabbit_build, ou seja, são
+-- visualmente idênticos ao bunnyman base. Expor os sete daria ao jogador três
+-- desbloqueios que não mudam nada na tela — pior do que não existirem. Eles continuam
+-- como tropa do exército, que é onde a diferença deles (brain/comportamento) aparece.
+--
+-- Os NÚMEROS abaixo NÃO são os dos prefabs de NPC. Lá as variantes são quase idênticas
+-- em combate (todas ~110/100 de dano, 120/100 de velocidade) porque se diferenciam pelo
+-- brain, que o jogador não usa. Como forma jogável isso deixaria os quatro tiers com a
+-- mesma sensação, então aqui existe uma escada deliberada, exposta em TUNING pra ser
+-- ajustada sem mexer neste arquivo.
+--------------------------------------------------------------------------------------
+local LADDER = TUNING.WUNNY_BUNNYFORM_LADDER or {}
+
+local function MakeForm(build, tier, extra)
+	local t = LADDER[tier] or {}
+	local form = {
 		--visual
 		bank = "manrabbit",
-		build = "manrabbit_build",
+		build = build,
 		skinmode = "bunnyman_skin",
 		shadow = { 1.5, .75 },
 
-		--combate/movimento: valores do bunnyman base (tuning.lua:2362+ e
-		--scripts/prefabs/bunnyman.lua:441-447)
-		damage = TUNING.BUNNYMAN_DAMAGE,
-		attackperiod = TUNING.BUNNYMAN_ATTACK_PERIOD,
-		runspeed = TUNING.BUNNYMAN_RUN_SPEED,
-		walkspeed = TUNING.BUNNYMAN_WALK_SPEED,
+		--combate/movimento: base do bunnyman (tuning.lua:2362+ e
+		--scripts/prefabs/bunnyman.lua:441-447) multiplicada pela escada do tier.
+		damage = TUNING.BUNNYMAN_DAMAGE * (t.damage or 1),
+		attackperiod = TUNING.BUNNYMAN_ATTACK_PERIOD * (t.attackperiod or 1),
+		runspeed = TUNING.BUNNYMAN_RUN_SPEED * (t.speed or 1),
+		walkspeed = TUNING.BUNNYMAN_WALK_SPEED * (t.speed or 1),
 
 		--NÃO mexemos em health:SetMaxHealth: o bunnyman tem 200 de vida, mas
 		--reescrever o máximo do jogador destruiria a pool dele na volta. O ganho de
 		--resistência vem por absorção, que é o que o woodie.lua faz no beaver
 		--(health:SetAbsorptionAmount).
-		absorption = 0.2,
-	},
+		absorption = t.absorption or 0.2,
+
+		--Dreno de sanidade por segundo enquanto a forma está ativa (0 = nenhum).
+		--Só a shadow usa; ver o comentário em ApplyFormEffects.
+		sanitydrain = t.sanitydrain or 0,
+	}
+	if extra ~= nil then
+		for k, v in pairs(extra) do
+			form[k] = v
+		end
+	end
+	return form
+end
+
+local FORMS = {
+	bunnyman           = MakeForm("manrabbit_build", 1),
+	daybunnyman        = MakeForm("daymanrabbit_build", 2),
+	everythingbunnyman = MakeForm("everythingmanrabbit_build", 3),
+	shadowbunnyman     = MakeForm("shadowmanrabbit_build", 4),
 }
 
 --A ordem define o índice do netvar (0 = forma nenhuma). Ao adicionar forma nova,
 --acrescente NO FIM: mudar a ordem invalida saves em andamento.
-local FORM_ORDER = { "bunnyman" }
+--
+--_bunnyform é um net_tinybyte (3 bits): o teto real aqui é SETE formas. Passar disso
+--exige trocar o netvar por net_smallbyte em SetupNetvars, não só acrescentar na lista.
+local FORM_ORDER = { "bunnyman", "daybunnyman", "everythingbunnyman", "shadowbunnyman" }
+
+--------------------------------------------------------------------------------------
+-- Casa -> forma que ela sintoniza. É a ÚNICA fonte de verdade do vínculo; a ação em
+-- modmain.lua consulta esta tabela pra saber se a estrutura clicada vale alguma coisa.
+--
+-- As casas das três variantes não-jogáveis (new/dwarf/ultra) ficam de fora de propósito:
+-- clicar nelas não oferece a ação, em vez de oferecer e falhar.
+--------------------------------------------------------------------------------------
+--
+-- "newbunnyhouse" e não "bunnyhouse" para a forma base: bunnyhouse.lua existe no disco
+-- mas NÃO está em PrefabFiles (modmain.lua:16-24), então não é uma entidade registrada.
+-- A casa base craftável é a newbunnyhouse — a receita mais barata, cuja própria função
+-- em modmain.lua ainda se chama bunnyhouse_recipe. Ela solta um "newbunnyman", que
+-- compartilha manrabbit_build com o bunnyman: a casa do coelho comum destrava a forma
+-- de cara comum, o que fecha certo.
+local HOUSE_TO_FORM = {
+	newbunnyhouse        = "bunnyman",
+	daybunnyhouse        = "daybunnyman",
+	everythingbunnyhouse = "everythingbunnyman",
+	shadowbunnyhouse     = "shadowbunnyman",
+}
 
 local FORM_INDEX = {}
 for i, name in ipairs(FORM_ORDER) do
@@ -358,6 +421,24 @@ local function ApplyFormEffects(inst, form)
 	inst:AddTag("bunnyform")
 	inst:AddTag("bunnyman")
 
+	--Dreno de sanidade (só a shadow, por padrão). O custo geral da forma já é o bloqueio
+	--de chop/mine/dig/build/pesca — não faz sentido empilhar dreno em todas. A shadow é a
+	--exceção porque o tema pede.
+	--
+	--Tarefa periódica em vez de sanity.custom_rate_fn: aquele campo é único e a Wunny já
+	--tem vários sistemas de sanidade concorrendo (aura de fogo da Willow, almas do
+	--Wortox); sobrescrevê-lo apagaria silenciosamente o que estivesse lá.
+	--
+	--Não damos AddTag("shadow")/("crazy") aqui de propósito: elas mudariam quem ataca a
+	--Wunny e a quem os shadows são hostis, o que é escopo bem maior que "virar coelho".
+	if (form.sanitydrain or 0) > 0 and inst.components.sanity ~= nil then
+		inst._bunnyform_sanitytask = inst:DoPeriodicTask(1, function(i)
+			if i.components.sanity ~= nil then
+				i.components.sanity:DoDelta(-form.sanitydrain, true)
+			end
+		end)
+	end
+
 	--Nada de fechar o menu de craft aqui: fechar é coisa de HUD (cliente,
 	--controls.lua:1027 owner.HUD:CloseCrafting), não de componente de servidor.
 	--Craftar simplesmente não surte efeito porque ACTIONS.BUILD está bloqueada.
@@ -390,6 +471,13 @@ local function ClearFormEffects(inst)
 
 	if inst.components.health ~= nil then
 		inst.components.health:SetAbsorptionAmount(0)
+	end
+
+	--Sem isto o dreno da shadow continua rodando depois de voltar ao normal (e um
+	--segundo dreno se soma a cada nova transformação).
+	if inst._bunnyform_sanitytask ~= nil then
+		inst._bunnyform_sanitytask:Cancel()
+		inst._bunnyform_sanitytask = nil
 	end
 
 	inst:RemoveTag("bunnyform")
@@ -460,6 +548,94 @@ local function Transform(inst, formname)
 	return true
 end
 
+--------------------------------------------------------------------------------------
+-- DESBLOQUEIO E SELEÇÃO
+--
+-- Regra do sistema: a CASA destrava e escolhe; a TECLA transforma.
+--
+-- Por que a casa não é uma "estação de transformação" (ter de voltar nela toda vez):
+-- a forma é ferramenta de combate, e obrigar uma viagem à base a cada uso a mataria. O
+-- precedente vanilla é o Woodie — o gate é adquirir a maldição, uma vez, e depois o
+-- castor é um toggle livre.
+--
+-- Mas a casa não vira conteúdo morto depois do desbloqueio: é ela que define QUAL forma
+-- a tecla ativa. Com quatro formas, uma tecla que cicla erraria o alvo em combate; assim
+-- a escolha é deliberada e feita fora de perigo, e o uso continua a um toque.
+--
+-- Tudo aqui é servidor: não há netvar de desbloqueio. A ação da casa é oferecida sempre
+-- (o servidor decide se ela destrava ou seleciona) e a tecla passa por RPC, então o
+-- cliente nunca precisa saber o estado — o que economiza dois netvars e o risco de eles
+-- dessincronizarem.
+--------------------------------------------------------------------------------------
+local function IsUnlocked(inst, formname)
+	return inst._bunnyform_unlocked ~= nil and inst._bunnyform_unlocked[formname] == true
+end
+
+local function Say(inst, msg)
+	if inst.components.talker ~= nil then
+		inst.components.talker:Say(msg)
+	end
+end
+
+--Ponto de entrada da ação na casa. Um único verbo para os dois casos (destravar e
+--selecionar) de propósito: assim a ação pode ser oferecida sem o cliente conhecer o
+--estado de desbloqueio.
+--
+--As saídas daqui são MUDAS pro jogador (a ação não tem como falar sozinha), então cada
+--uma imprime. Sem isso, sintonizar sem efeito é indistinguível de sintonizar com efeito —
+--foi assim que o primeiro teste em jogo só revelou o sintoma lá na frente, na tecla B.
+local function AttuneAtHouse(inst, house)
+	if not TheWorld.ismastersim then
+		print("[wunny/bunnyform] attune ignorado: rodou no CLIENTE.")
+		return false
+	end
+	if house == nil then
+		print("[wunny/bunnyform] attune ignorado: alvo nulo.")
+		return false
+	end
+	local formname = HOUSE_TO_FORM[house.prefab]
+	if formname == nil then
+		print("[wunny/bunnyform] attune ignorado: casa sem forma associada:", tostring(house.prefab))
+		return false
+	end
+	print("[wunny/bunnyform] attune em", tostring(house.prefab), "-> forma", formname)
+
+	if inst._bunnyform_unlocked == nil then
+		inst._bunnyform_unlocked = {}
+	end
+
+	if not IsUnlocked(inst, formname) then
+		inst._bunnyform_unlocked[formname] = true
+		inst._bunnyform_selected = formname
+		Say(inst, STRINGS.WUNNY_BUNNYFORM_UNLOCKED or "Agora eu sei virar isso!")
+		return true
+	end
+
+	if inst._bunnyform_selected == formname then
+		Say(inst, STRINGS.WUNNY_BUNNYFORM_ALREADY or "Já é essa forma que eu visto.")
+		return false
+	end
+
+	inst._bunnyform_selected = formname
+	Say(inst, STRINGS.WUNNY_BUNNYFORM_SELECTED or "É essa forma que eu vou vestir.")
+	return true
+end
+
+--A forma que a tecla ativa. Cai na primeira desbloqueada se a seleção sumiu (forma
+--removida do mod numa atualização, save antigo).
+local function GetSelected(inst)
+	local sel = inst._bunnyform_selected
+	if sel ~= nil and FORMS[sel] ~= nil and IsUnlocked(inst, sel) then
+		return sel
+	end
+	for _, name in ipairs(FORM_ORDER) do
+		if IsUnlocked(inst, name) then
+			return name
+		end
+	end
+	return nil
+end
+
 local function Revert(inst)
 	if not TheWorld.ismastersim then
 		print("[wunny/bunnyform] ignorado: rodou no CLIENTE. No console use Ctrl+Enter (modo remoto).")
@@ -475,6 +651,41 @@ local function Revert(inst)
 	end
 	inst.sg:GoToState("bunnyform_untransform")
 	return true
+end
+
+--O que a tecla chama. Na forma -> volta ao normal; fora dela -> entra na selecionada.
+--
+--Definido DEPOIS de Revert de propósito: os dois são locais, e chamar Revert de um
+--"local function" declarado antes dele o resolveria como global (nil) em tempo de
+--execução, sem erro de carga.
+--
+--O desbloqueio é checado AQUI e não em Transform: Transform continua sendo a porta crua
+--pra console e depuração ("c_select(ThePlayer):BunnyFormTransform('shadowbunnyman')"),
+--enquanto este é o caminho do jogador. Como o RPC só chama este, um cliente adulterado
+--não consegue pular o gate.
+local function ToggleForm(inst)
+	if not TheWorld.ismastersim then
+		return false
+	end
+	if IsInForm(inst) then
+		return Revert(inst)
+	end
+
+	local formname = GetSelected(inst)
+	if formname == nil then
+		--Imprime o conteúdo real da tabela: "nenhuma desbloqueada" pode significar tanto
+		--que o jogador não sintonizou quanto que o attune rodou e não persistiu, e sem
+		--isto os dois casos são a mesma mensagem na tela.
+		local names = {}
+		for name in pairs(inst._bunnyform_unlocked or {}) do
+			table.insert(names, name)
+		end
+		print("[wunny/bunnyform] toggle sem forma. desbloqueadas={" .. table.concat(names, ",")
+			.. "} selecionada=" .. tostring(inst._bunnyform_selected))
+		Say(inst, STRINGS.WUNNY_BUNNYFORM_NONE or "Preciso visitar uma casa de coelho antes.")
+		return false
+	end
+	return Transform(inst, formname)
 end
 
 --Morrer ou virar fantasma na forma tem de desfazer tudo, senão a Wunny renasce
@@ -497,6 +708,14 @@ local function OnSave(inst, data)
 		--lá em cima já avisa que mexer na ordem invalidaria saves. Com o nome, reordenar
 		--FORM_ORDER deixa de ser problema.
 		data.bunnyform = formname
+	end
+
+	--Desbloqueios: gravados como { nome = true }, pelo mesmo motivo do campo acima —
+	--um bitmask ou uma lista de índices dependeria de FORM_ORDER, e reordenar a tabela
+	--faria todo mundo acordar com a forma errada destravada.
+	if inst._bunnyform_unlocked ~= nil and next(inst._bunnyform_unlocked) ~= nil then
+		data.bunnyform_unlocked = inst._bunnyform_unlocked
+		data.bunnyform_selected = inst._bunnyform_selected
 	end
 end
 
@@ -552,6 +771,22 @@ local function DoLoadRestore(inst)
 end
 
 local function OnLoad(inst, data)
+	--Desbloqueios primeiro, e filtrando pelo que ainda existe: uma forma retirada do mod
+	--não pode continuar destravada, senão GetSelected a devolve e Transform falha em
+	--silêncio toda vez que a tecla é apertada.
+	if data ~= nil and data.bunnyform_unlocked ~= nil then
+		inst._bunnyform_unlocked = {}
+		for name, v in pairs(data.bunnyform_unlocked) do
+			if v == true and FORMS[name] ~= nil then
+				inst._bunnyform_unlocked[name] = true
+			end
+		end
+		local sel = data.bunnyform_selected
+		if sel ~= nil and inst._bunnyform_unlocked[sel] then
+			inst._bunnyform_selected = sel
+		end
+	end
+
 	local formname = data ~= nil and data.bunnyform or nil
 	if formname == nil then
 		return
@@ -590,6 +825,8 @@ end
 local function SetupServer(inst)
 	inst.BunnyFormTransform = Transform
 	inst.BunnyFormRevert = Revert
+	inst.BunnyFormToggle = ToggleForm
+	inst.BunnyFormAttune = AttuneAtHouse
 	inst:ListenForEvent("ms_becameghost", OnBecameGhost)
 	inst:ListenForEvent("death", OnBecameGhost)
 end
@@ -683,6 +920,18 @@ end
 local SAFE_STATES_IN_FORM = {
 	wunny_jumpwall = true,
 }
+
+--Registra o actionhandler da ação de sintonizar. Vale para o SGwilson e para o
+--SGwilson_client: os dois têm "dostandingaction", e sem o do cliente a predição local não
+--acompanha (a ação até acontece, mas só depois do servidor responder).
+local function AddAttuneActionHandler(sg)
+	local act = ACTIONS.WUNNY_BUNNYFORM_ATTUNE
+	--Guarda contra ordem de carregamento: se a ação ainda não existisse, indexar
+	--sg.actionhandlers com nil estouraria aqui em vez de no lugar do erro real.
+	if act ~= nil and sg.states["dostandingaction"] ~= nil then
+		sg.actionhandlers[act] = ActionHandler(act, "dostandingaction")
+	end
+end
 
 local function PatchAllActionHandlers(sg, fallback)
 	for act, handler in pairs(sg.actionhandlers) do
@@ -1034,6 +1283,18 @@ local function PatchStategraph(sg)
 	--falhou três vezes, sempre sobrando uma (TOSS, os emotes, ações de outros mods) —
 	--invertemos: NENHUM estado vanilla é seguro na forma, porque o bank manrabbit tem
 	--~50 animações contra as centenas que o SGwilson usa. Então tudo que não for um
+	--WUNNY_BUNNYFORM_ATTUNE é uma ação NOSSA: nenhum stategraph vanilla tem actionhandler
+	--pra ela, e sem handler o stategraph descarta a ação bufferizada em silêncio — o verbo
+	--"Sintonizar" aparece, clicar não faz nada e ACTIONS.WUNNY_BUNNYFORM_ATTUNE.fn nunca
+	--roda (nenhum print sai; foi assim que o sintonizar pareceu "não existir"). Compare com
+	--o salto, que só funciona porque wunny_jumpwall.lua:429 registra o dele.
+	--
+	--"dostandingaction" (SGwilson.lua:7838) é o estado curto que só faz
+	--PerformBufferedAction. O registro vem ANTES do PatchAllActionHandlers de propósito:
+	--assim ele também é embrulhado e, na forma, o destino vira "bunnyform_action" sozinho,
+	--sem precisar de um if aqui.
+	AddAttuneActionHandler(sg)
+
 	--estado nosso vai pro "bunnyform_action", que toca "atk" e executa a ação.
 	PatchAllActionHandlers(sg, "bunnyform_action")
 end
@@ -1049,6 +1310,7 @@ end
 -- visual — que é exatamente o que queremos, já que a animação prevista não existe.
 --------------------------------------------------------------------------------------
 local function PatchClientStategraph(sg)
+	AddAttuneActionHandler(sg)
 	--fallback nil: nenhuma predição. O servidor decide e a animação vem de lá.
 	PatchAllActionHandlers(sg, nil)
 	PatchEquipEvents(sg)
@@ -1058,6 +1320,11 @@ end
 return {
 	FORMS           = FORMS,
 	FORM_ORDER      = FORM_ORDER,
+	HOUSE_TO_FORM   = HOUSE_TO_FORM,
+	AttuneAtHouse   = AttuneAtHouse,
+	ToggleForm      = ToggleForm,
+	IsUnlocked      = IsUnlocked,
+	GetSelected     = GetSelected,
 	SetupNetvars    = SetupNetvars,
 	SetupServer     = SetupServer,
 	PatchStategraph = PatchStategraph,

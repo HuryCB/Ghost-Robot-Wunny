@@ -51,6 +51,13 @@ local assets = {
 	Asset("ANIM", "anim/manrabbit_attacks.zip"),
 	Asset("ANIM", "anim/manrabbit_build.zip"),
 	Asset("ANIM", "anim/manrabbit_boat_jump.zip"),
+	--Builds das outras tres formas jogaveis (FORMS em wunny_bunnyform.lua). Mesmo caso
+	--do manrabbit_build acima: o bank e' compartilhado, mas o BUILD e' declarado pelo
+	--prefab da variante. Sem estes, transformar num mundo onde nenhum daybunnyman/
+	--everythingbunnyman/shadowbunnyman foi carregado deixa a Wunny invisivel.
+	Asset("ANIM", "anim/daymanrabbit_build.zip"),
+	Asset("ANIM", "anim/everythingmanrabbit_build.zip"),
+	Asset("ANIM", "anim/shadowmanrabbit_build.zip"),
 	--"transform_pre"/"transform_pst" (as metades da transformacao que tocam no bank
 	--"wilson") NAO estao nas anims compartilhadas do jogador: elas vem empacotadas no
 	--zip do Woodie. Sem isto a fase 1 da ida e a fase 2 da volta nao tem animacao, e o

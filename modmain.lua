@@ -379,6 +379,24 @@ TUNING.WUNNY_JUMPWALL_SPEED = 7            -- velocidade-base do voo, em unidade
 TUNING.WUNNY_JUMP_RATE = 2                 -- aceleração global do salto: encurta agachamento, voo e pouso E acelera as animações na mesma proporção
 TUNING.WUNNY_JUMPFREE_DIST = 4.5           -- alcance do salto livre (tecla V), em unidades; encurta sozinho se o ponto cheio não for pisável
 TUNING.WUNNY_BUNNYFOLLOWER_DAMAGE = 1      -- dano do coelho selvagem domesticado (cenoura) no combate "bate e foge"
+
+-- Escada das formas de bunnyman (wunny_bunnyform.lua). Índice = tier, na mesma ordem de
+-- FORM_ORDER: 1 base, 2 day, 3 everything, 4 shadow.
+--
+-- damage/attackperiod/speed são MULTIPLICADORES sobre TUNING.BUNNYMAN_*; attackperiod
+-- menor = ataca mais rápido. absorption é redução de dano recebido (0.35 = -35%).
+--
+-- Estes números divergem de propósito dos prefabs de NPC das variantes, onde todas têm
+-- praticamente o mesmo combate (elas se distinguem pelo brain, que o jogador não usa).
+-- Sem a escada, os quatro tiers dariam a mesma sensação de jogo.
+TUNING.WUNNY_BUNNYFORM_LADDER = {
+    { damage = 1.00, attackperiod = 1.00, speed = 1.00, absorption = 0.20 },
+    { damage = 1.10, attackperiod = 0.90, speed = 1.10, absorption = 0.25 },
+    { damage = 1.25, attackperiod = 0.85, speed = 1.20, absorption = 0.30 },
+    -- A shadow é a única com custo de manutenção: o preço das outras é o bloqueio de
+    -- chop/mine/dig/build/pesca, que já basta. sanitydrain é por SEGUNDO.
+    { damage = 1.50, attackperiod = 0.75, speed = 1.30, absorption = 0.35, sanitydrain = 1.5 },
+}
 -- TUNING.WUNNY_KING_
 -- TUNING.SHADOWBUNNYMAN_ATTACK_PERIOD =
 -- WUNNY_RUNNING_HUNGER_RATETUNNIN.WUNNY_IDLE_HUNGER_RATE = 1
@@ -536,10 +554,27 @@ local function WunnyCanJumpWall(doer)
         and not (rider ~= nil and rider:IsRiding())
 end
 
+-- COLETOR ÚNICO de "workable". NÃO acrescente um segundo AddComponentAction para
+-- ("SCENE", "workable") neste mod: componentactions.lua:3116 faz
+--     MOD_COMPONENT_ACTIONS[modname][actiontype][component] = fn
+-- ou seja, ATRIBUIÇÃO num slot único, não uma lista. Um segundo registro apaga este sem
+-- erro nenhum — foi assim que a ação de sintonizar chegou a apagar o salto de parede.
+-- Ação nova em cima de workable entra como mais um `if` AQUI DENTRO.
 AddComponentAction("SCENE", "workable", function(inst, doer, actions, right)
-    if right and inst:HasTag("wall") and WUNNY_JUMPABLE_WALLS[inst.prefab]
-        and WunnyCanJumpWall(doer) then
+    if not right then
+        return
+    end
+
+    -- salto de parede
+    if inst:HasTag("wall") and WUNNY_JUMPABLE_WALLS[inst.prefab] and WunnyCanJumpWall(doer) then
         table.insert(actions, GLOBAL.ACTIONS.WUNNY_JUMPWALL)
+    end
+
+    -- sintonizar com casa de coelho (ver o bloco logo abaixo)
+    if doer:HasTag("wunny") and not doer:HasTag("playerghost")
+        and not inst:HasTag("burnt")
+        and GLOBAL.require("wunny_bunnyform").HOUSE_TO_FORM[inst.prefab] ~= nil then
+        table.insert(actions, GLOBAL.ACTIONS.WUNNY_BUNNYFORM_ATTUNE)
     end
 end)
 
@@ -558,6 +593,41 @@ GLOBAL.ACTIONS.WUNNY_JUMPWALL.fn = function(act)
     end
     return true
 end
+
+-- Sintonizar com uma casa de coelho: destrava aquela forma de bunnyman na primeira vez e,
+-- depois, define qual forma a tecla B ativa. Ver o bloco de comentário sobre desbloqueio
+-- em wunny_bunnyform.lua para o porquê de casa-destrava/tecla-transforma.
+--
+-- Só as casas das QUATRO variantes com build próprio aparecem em HOUSE_TO_FORM; clicar
+-- na dwarf/ultra/new não oferece a ação, em vez de oferecer e falhar.
+local bunnyform_attune = GLOBAL.Action({ rmb = true, distance = 2 })
+bunnyform_attune.id = "WUNNY_BUNNYFORM_ATTUNE"
+bunnyform_attune.str = "Sintonizar"
+AddAction(bunnyform_attune)
+
+-- UM único verbo para destravar e para selecionar. Isso é o que permite o sistema não ter
+-- netvar nenhum: a coleta de ações roda no CLIENTE, que não sabe o que já está
+-- desbloqueado — se houvesse dois verbos ele teria de saber, e daria dois netvars a mais
+-- pra manter em sincronia. Com um verbo só, o servidor decide o significado.
+--
+-- A coleta em si fica no coletor único de "workable" lá em cima, junto com o salto.
+
+GLOBAL.ACTIONS.WUNNY_BUNNYFORM_ATTUNE.fn = function(act)
+    local doer, target = act.doer, act.target
+    -- Primeira linha de propósito: se este print não sai no log quando a ação é usada, o
+    -- problema está ANTES daqui (coleta/validação da ação no servidor) e não no módulo.
+    print("[wunny/bunnyform] ACTIONS.WUNNY_BUNNYFORM_ATTUNE.fn doer=" .. tostring(doer)
+        .. " target=" .. tostring(target ~= nil and target.prefab or nil))
+    if doer == nil or target == nil or not doer:HasTag("wunny") then
+        return false
+    end
+    return GLOBAL.require("wunny_bunnyform").AttuneAtHouse(doer, target)
+end
+
+GLOBAL.STRINGS.WUNNY_BUNNYFORM_UNLOCKED = "Agora eu sei virar isso!"
+GLOBAL.STRINGS.WUNNY_BUNNYFORM_SELECTED = "É essa forma que eu vou vestir."
+GLOBAL.STRINGS.WUNNY_BUNNYFORM_ALREADY = "Já é essa forma que eu visto."
+GLOBAL.STRINGS.WUNNY_BUNNYFORM_NONE = "Preciso visitar uma casa de coelho antes."
 
 GLOBAL.ACTIONS.WUNNY_BURROWTRAVEL_MAP.fn = function(act)
     local valid, reason, act_posx, act_posz, mapent = GLOBAL.ACTIONS.WUNNY_BURROWTRAVEL_MAP.maponly_checkvalidpos_fn(act)
@@ -1667,6 +1737,29 @@ GLOBAL.TheInput:AddKeyDownHandler(GLOBAL.KEY_V, function()
         -- Starve single-player; no DST a primeira não existe e a segunda é legacy — o
         -- próprio modutil.lua:902 manda usar GetModRPC.
         SendModRPCToServer(GetModRPC(modname, "wunny_jumpfree"))
+    end
+end)
+
+-- Tecla B: entra/sai da forma de bunnyman SELECIONADA. Quem escolhe a forma é a casa
+-- (ação "Sintonizar"), não esta tecla — com quatro formas, uma tecla que ciclasse acabaria
+-- ativando a errada no meio de uma luta, que é justamente quando ela é usada.
+--
+-- Mesmo motivo do salto livre pra ser RPC e não chamada direta: num servidor dedicado o
+-- ThePlayer do cliente é só o replica, sem sg nem componentes de servidor.
+AddModRPCHandler(modname, "wunny_bunnyform_toggle", function(player)
+    -- Validação inteira no servidor (desbloqueio, forma selecionada, estado ocupado):
+    -- o cliente pode mandar este RPC à vontade e o pior que consegue é um "false".
+    GLOBAL.require("wunny_bunnyform").ToggleForm(player)
+end)
+
+GLOBAL.TheInput:AddKeyDownHandler(GLOBAL.KEY_B, function()
+    local player = GLOBAL.ThePlayer
+    -- HasInputFocus: sem isto, escrever no chat vira coelho no meio da frase.
+    if player == nil or (player.HUD ~= nil and player.HUD:HasInputFocus()) then
+        return
+    end
+    if player:HasTag("wunny") then
+        SendModRPCToServer(GetModRPC(modname, "wunny_bunnyform_toggle"))
     end
 end)
 
