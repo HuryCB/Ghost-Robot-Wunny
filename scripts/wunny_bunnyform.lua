@@ -1129,10 +1129,31 @@ end
 --invisível por ~0.4s/0.56s mas o teleporte, a invencibilidade e os FX continuam
 --funcionando — não fizemos a troca aqui pra não duplicar toda aquela lógica (tints,
 --skilltree, física) só por causa de um sumiço cosmético e breve.
+--
+--O evento "animover" original espera o clipe INTEIRO de "atk" terminar (AnimDone()) pra
+--só então disparar a ação — e "atk" é bem mais comprida que a "wortox_portal_jumpin_pre"
+--vanilla (que é só um flash rápido). Resultado: a mordida termina visualmente e o
+--teleporte ainda demora quase 1s pra acontecer, porque o clipe de "atk" continua rodando
+--por baixo. Por isso usamos um SetTimeout curto (do tamanho da anim vanilla) pra disparar
+--a ação sem depender do fim do clipe de "atk".
+local SOULHOP_BUNNYFORM_DELAY = 10 * FRAMES
+
 local function PatchSoulhop(sg)
 	local portal_jumpin_pre = sg.states["portal_jumpin_pre"]
 	if portal_jumpin_pre ~= nil and portal_jumpin_pre.onenter ~= nil then
 		local old_onenter = portal_jumpin_pre.onenter
+		local old_ontimeout = portal_jumpin_pre.ontimeout
+
+		--Sem AnimState:AnimDone() aqui: o timeout dispara ANTES do clipe de "atk" acabar
+		--(de propósito, ver comentário acima), então essa checagem — que existe pro
+		--"animover" original, disparado só quando o clipe termina — sempre daria falso e a
+		--ação nunca rodaria.
+		local function DoSoulhopAction(inst)
+			if not inst:PerformBufferedAction() then
+				inst.sg:GoToState("idle")
+			end
+		end
+
 		portal_jumpin_pre.onenter = function(inst)
 			if inst:HasTag("bunnyform") then
 				inst.components.locomotor:Stop()
@@ -1141,9 +1162,20 @@ local function PatchSoulhop(sg)
 				if buffaction ~= nil and buffaction.pos ~= nil then
 					inst:ForceFacePoint(buffaction:GetActionPoint():Get())
 				end
+				inst.sg:SetTimeout(SOULHOP_BUNNYFORM_DELAY)
 				return
 			end
 			return old_onenter(inst)
+		end
+
+		portal_jumpin_pre.ontimeout = function(inst)
+			if inst:HasTag("bunnyform") then
+				DoSoulhopAction(inst)
+				return
+			end
+			if old_ontimeout ~= nil then
+				return old_ontimeout(inst)
+			end
 		end
 	end
 end
