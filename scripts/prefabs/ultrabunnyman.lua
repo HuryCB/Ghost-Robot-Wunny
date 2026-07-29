@@ -429,8 +429,15 @@ local function OnRefuseItem(inst, item)
 end
 
 local function OnAttacked(inst, data)
-    inst.components.combat:SetTarget(data.attacker)
-    inst.components.combat:ShareTarget(data.attacker, SHARE_TARGET_DIST,
+    local attacker = data ~= nil and data.attacker or nil
+    --Enquanto a Wunny estiver em qualquer forma de coelho (tag "bunnyform", ver
+    --wunny_bunnyform.lua), o exercito de coelhos deve trata-la como uma delas, entao
+    --nao revida contra ela mesmo se ela acidentalmente acertar um golpe.
+    if attacker == nil or PreventTargetingOnAttacked(inst, attacker, "bunnyform") then
+        return
+    end
+    inst.components.combat:SetTarget(attacker)
+    inst.components.combat:ShareTarget(attacker, SHARE_TARGET_DIST,
         function(dude) return dude.prefab == inst.prefab end, MAX_TARGET_SHARES)
 end
 

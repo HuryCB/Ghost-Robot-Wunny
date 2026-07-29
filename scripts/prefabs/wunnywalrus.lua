@@ -48,8 +48,15 @@ local function SuggestTreeTarget(inst, data)
 end
 
 local function OnAttacked(inst, data)
-    inst.components.combat:SetTarget(data.attacker)
-    inst.components.combat:ShareTarget(data.attacker, 30, ShareTargetFn, 5)
+    local attacker = data ~= nil and data.attacker or nil
+    --Enquanto a Wunny estiver em qualquer forma de coelho (tag "bunnyform", ver
+    --wunny_bunnyform.lua), a morsa companheira deve trata-la como aliada, entao nao
+    --revida contra ela mesmo se ela acidentalmente acertar um golpe.
+    if attacker == nil or PreventTargetingOnAttacked(inst, attacker, "bunnyform") then
+        return
+    end
+    inst.components.combat:SetTarget(attacker)
+    inst.components.combat:ShareTarget(attacker, 30, ShareTargetFn, 5)
 end
 
 local RETARGET_MUST_TAGS = { "_combat" }

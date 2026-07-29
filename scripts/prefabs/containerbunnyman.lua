@@ -10,6 +10,11 @@ local assets =
     Asset("ANIM", "anim/manrabbit_beard_basic.zip"),
     Asset("ANIM", "anim/manrabbit_beard_actions.zip"),
     Asset("SOUND", "sound/bunnyman.fsb"),
+
+    --Baú nas costas: mesma técnica do sunkenchest vanilla (swap_body), só que fixo em
+    --vez de equipável, já que este bunnyman É o container ambulante (container:WidgetSetup
+    --"wobybig" mais abaixo).
+    Asset("ANIM", "anim/swap_sunken_treasurechest.zip"),
 }
 
 local prefabs =
@@ -211,8 +216,15 @@ local function OnRefuseItem(inst, item)
 end
 
 local function OnAttacked(inst, data)
-    inst.components.combat:SetTarget(data.attacker)
-    inst.components.combat:ShareTarget(data.attacker, SHARE_TARGET_DIST, function(dude) return dude.prefab == inst.prefab end, MAX_TARGET_SHARES)
+    local attacker = data ~= nil and data.attacker or nil
+    --Enquanto a Wunny estiver em qualquer forma de coelho (tag "bunnyform", ver
+    --wunny_bunnyform.lua), o exercito de coelhos deve trata-la como uma delas, entao
+    --nao revida contra ela mesmo se ela acidentalmente acertar um golpe.
+    if attacker == nil or PreventTargetingOnAttacked(inst, attacker, "bunnyform") then
+        return
+    end
+    inst.components.combat:SetTarget(attacker)
+    inst.components.combat:ShareTarget(attacker, SHARE_TARGET_DIST, function(dude) return dude.prefab == inst.prefab end, MAX_TARGET_SHARES)
 end
 
 local function OnNewTarget(inst, data)
@@ -319,6 +331,11 @@ local function fn()
     inst.AnimState:Hide("hat")
     inst.AnimState:Hide("ARM_carry")
     inst.AnimState:Hide("HAIR_HAT")
+
+    --Baú fixo nas costas, indicando visualmente que este bunnyman carrega itens (mesmo
+    --símbolo "swap_body" que armaduras/mochilas usam, só que aplicado direto no rig em
+    --vez de via equippable:SetOnEquip).
+    inst.AnimState:OverrideSymbol("swap_body", "swap_sunken_treasurechest", "swap_body")
 
     inst.AnimState:SetClientsideBuildOverride("insane", "manrabbit_build", "manrabbit_beard_build")
 
