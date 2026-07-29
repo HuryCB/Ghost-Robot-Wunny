@@ -383,19 +383,50 @@ TUNING.WUNNY_BUNNYFOLLOWER_DAMAGE = 1      -- dano do coelho selvagem domesticad
 -- Escada das formas de bunnyman (wunny_bunnyform.lua). Índice = tier, na mesma ordem de
 -- FORM_ORDER: 1 base, 2 day, 3 everything, 4 shadow.
 --
--- damage/attackperiod/speed são MULTIPLICADORES sobre TUNING.BUNNYMAN_*; attackperiod
--- menor = ataca mais rápido. absorption é redução de dano recebido (0.35 = -35%).
+-- damage/speed são MULTIPLICADORES sobre TUNING.BUNNYMAN_*. absorption é redução de dano
+-- recebido (0.35 = -35%).
+--
+-- attackrate é ACELERAÇÃO do ataque: 1.3 = 30% mais rápido. NÃO confundir com o antigo
+-- campo "attackperiod", que estava invertido na prática e foi removido — ele escrevia em
+-- combat.min_attack_period usando TUNING.BUNNYMAN_ATTACK_PERIOD (2s) como base, quando o
+-- jogador usa WILSON_ATTACK_PERIOD (0.4s). O resultado era um PISO de 1.5 a 2.0 segundos
+-- entre ataques: todas as quatro formas atacavam 4 a 5 vezes mais devagar que a Wunny
+-- normal. E aquele campo nunca poderia deixar mais rápido, porque o limitador real do
+-- jogador é o comprimento do estado de ataque, não o min_attack_period.
+--
+-- Agora a aceleração é feita no lugar certo, do mesmo jeito que WUNNY_JUMP_RATE faz com o
+-- salto: o estado "bunnyform_attack" encurta o próprio timeout e chama
+-- AnimState:SetDeltaTimeMultiplier na mesma proporção, para som e imagem acompanharem.
+--
+-- work são as eficiências do component "worker" (padrão do werebeaver, woodie.lua:846):
+-- é isto que deixa a forma cortar/minerar SEM ferramenta, como os bunnymen NPC fazem
+-- (daybunnymanbrain.lua:80,123 emitem CHOP/MINE sem machado nenhum equipado). 1.0 é o
+-- equivalente a uma ferramenta comum; nil = aquela ação não fica disponível na forma.
 --
 -- Estes números divergem de propósito dos prefabs de NPC das variantes, onde todas têm
 -- praticamente o mesmo combate (elas se distinguem pelo brain, que o jogador não usa).
 -- Sem a escada, os quatro tiers dariam a mesma sensação de jogo.
 TUNING.WUNNY_BUNNYFORM_LADDER = {
-    { damage = 1.00, attackperiod = 1.00, speed = 1.00, absorption = 0.20 },
-    { damage = 1.10, attackperiod = 0.90, speed = 1.10, absorption = 0.25 },
-    { damage = 1.25, attackperiod = 0.85, speed = 1.20, absorption = 0.30 },
+    { damage = 1.00, attackrate = 1.00, speed = 1.00, absorption = 0.20,
+      work = { CHOP = 1,   MINE = nil, DIG = nil, HAMMER = 0.25 } },
+    { damage = 1.10, attackrate = 1.10, speed = 1.10, absorption = 0.25,
+      work = { CHOP = 2,   MINE = 0.5, DIG = 0.5, HAMMER = 0.5 } },
+    { damage = 1.25, attackrate = 1.25, speed = 1.20, absorption = 0.30,
+      work = { CHOP = 3,   MINE = 1,   DIG = 1,   HAMMER = 1 } },
     -- A shadow é a única com custo de manutenção: o preço das outras é o bloqueio de
-    -- chop/mine/dig/build/pesca, que já basta. sanitydrain é por SEGUNDO.
-    { damage = 1.50, attackperiod = 0.75, speed = 1.30, absorption = 0.35, sanitydrain = 1.5 },
+    -- build/pesca. sanitydrain é por SEGUNDO.
+    { damage = 1.50, attackrate = 1.40, speed = 1.30, absorption = 0.35, sanitydrain = 1.5,
+      work = { CHOP = 4,   MINE = 2,   DIG = 1.5, HAMMER = 1.5 } },
+}
+
+-- Teleporte de fuga da forma shadow (tier 4), ao levar dano. Ver ApplyFormEffects.
+TUNING.WUNNY_BUNNYFORM_BLINK = {
+    chance = 0.25,     -- probabilidade por golpe recebido
+    cooldown = 8,      -- segundos mínimos entre dois teleportes
+    mindist = 6,       -- distância mínima do salto, em unidades
+    maxdist = 11,      -- distância máxima
+    tries = 12,        -- tentativas de achar destino seguro antes de desistir
+    safe_radius = 8,   -- raio varrido em volta do destino à procura de hostis
 }
 -- TUNING.WUNNY_KING_
 -- TUNING.SHADOWBUNNYMAN_ATTACK_PERIOD =
@@ -560,9 +591,35 @@ end
 -- ou seja, ATRIBUIÇÃO num slot único, não uma lista. Um segundo registro apaga este sem
 -- erro nenhum — foi assim que a ação de sintonizar chegou a apagar o salto de parede.
 -- Ação nova em cima de workable entra como mais um `if` AQUI DENTRO.
+-- HAMMER fica de fora desta lista de propósito: componentactions.lua:3063 recusa
+-- ACTIONS.HAMMER em clique esquerdo, então ela é oferecida no bloco do botão direito.
+local WUNNY_BUNNYWORK_ACTIONS = { "CHOP", "MINE", "DIG" }
+
 AddComponentAction("SCENE", "workable", function(inst, doer, actions, right)
     if not right then
+        -- Cortar/minerar/cavar SEM ferramenta na forma de bunnyman. O coletor vanilla de
+        -- trabalho vive no contexto EQUIPPED (componentactions.lua:2449, "tool"), ou seja,
+        -- só existe quando há uma ferramenta na mão — por isso a forma precisa de um
+        -- coletor próprio aqui no SCENE. As tags *_bunnywork são postas pelo servidor em
+        -- ApplyFormEffects e replicam pro cliente, que é quem roda esta função.
+        if doer:HasTag("bunnyform") then
+            for _, actname in ipairs(WUNNY_BUNNYWORK_ACTIONS) do
+                if doer:HasTag(actname .. "_bunnywork")
+                    and inst:HasTag(actname .. "_workable")
+                    and not inst:HasTag("smolder")
+                then
+                    table.insert(actions, GLOBAL.ACTIONS[actname])
+                    return
+                end
+            end
+        end
         return
+    end
+
+    -- martelar sem ferramenta na forma (ver a lista acima para o porquê de HAMMER só aqui)
+    if doer:HasTag("bunnyform") and doer:HasTag("HAMMER_bunnywork")
+        and inst:HasTag("HAMMER_workable") and not inst:HasTag("smolder") then
+        table.insert(actions, GLOBAL.ACTIONS.HAMMER)
     end
 
     -- salto de parede

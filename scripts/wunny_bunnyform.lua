@@ -91,7 +91,6 @@ local function MakeForm(build, tier, extra)
 		--combate/movimento: base do bunnyman (tuning.lua:2362+ e
 		--scripts/prefabs/bunnyman.lua:441-447) multiplicada pela escada do tier.
 		damage = TUNING.BUNNYMAN_DAMAGE * (t.damage or 1),
-		attackperiod = TUNING.BUNNYMAN_ATTACK_PERIOD * (t.attackperiod or 1),
 		runspeed = TUNING.BUNNYMAN_RUN_SPEED * (t.speed or 1),
 		walkspeed = TUNING.BUNNYMAN_WALK_SPEED * (t.speed or 1),
 
@@ -101,9 +100,23 @@ local function MakeForm(build, tier, extra)
 		--(health:SetAbsorptionAmount).
 		absorption = t.absorption or 0.2,
 
+		--Aceleração do ataque. O estado "bunnyform_attack" é NOSSO, então dá para encurtar
+		--o timeout dele e acelerar a animação junto — que é o único jeito de o jogador
+		--realmente bater mais rápido. min_attack_period é só um piso anti-spam; baixamos
+		--junto para ele não anular a aceleração nos tiers altos.
+		attackrate = t.attackrate or 1,
+		attackperiod = TUNING.WILSON_ATTACK_PERIOD / (t.attackrate or 1),
+
+		--Eficiências de trabalho sem ferramenta (component "worker"). Ver o comentário do
+		--LADDER em modmain.lua.
+		work = t.work,
+
 		--Dreno de sanidade por segundo enquanto a forma está ativa (0 = nenhum).
 		--Só a shadow usa; ver o comentário em ApplyFormEffects.
 		sanitydrain = t.sanitydrain or 0,
+
+		--Teleporte de fuga ao levar dano (só a shadow, tier 4).
+		blink = tier == 4,
 	}
 	if extra ~= nil then
 		for k, v in pairs(extra) do
@@ -393,6 +406,73 @@ end
 -- outros sistemas da Wunny que também mexem em velocidade (mightiness do Wolfgang,
 -- florescimento do Wormwood, carga do WX-78).
 --------------------------------------------------------------------------------------
+--------------------------------------------------------------------------------------
+-- TELEPORTE DE FUGA DA FORMA SHADOW
+--
+-- "Seguro" aqui é uma checagem explícita, não só terreno pisável: FindWalkableOffset
+-- garante chão, mas nada impede que o chão escolhido esteja no meio de um ninho de
+-- aranhas — o teleporte de fuga entregaria a Wunny pra outro mob no frame seguinte. Por
+-- isso cada candidato é varrido por hostis antes de ser aceito, e só se nenhuma das
+-- tentativas passar é que caímos no melhor candidato pisável que apareceu.
+--------------------------------------------------------------------------------------
+local BLINK_HOSTILE_TAGS = { "hostile", "monster" }
+local BLINK_HOSTILE_NOTAGS = { "player", "companion", "INLIMBO", "notarget" }
+
+local function CountHostilesNear(x, z, radius)
+	local ents = TheSim:FindEntities(x, 0, z, radius, nil, BLINK_HOSTILE_NOTAGS, BLINK_HOSTILE_TAGS)
+	return #ents
+end
+
+local function TryBlink(inst)
+	local cfg = TUNING.WUNNY_BUNNYFORM_BLINK or {}
+	local x, y, z = inst.Transform:GetWorldPosition()
+	local fallback = nil
+
+	for _ = 1, cfg.tries or 12 do
+		local dist = GetRandomMinMax(cfg.mindist or 6, cfg.maxdist or 11)
+		local offset = FindWalkableOffset(Vector3(x, y, z), math.random() * TWOPI, dist, 8, false, true)
+		if offset ~= nil then
+			local cx, cz = x + offset.x, z + offset.z
+			local hostiles = CountHostilesNear(cx, cz, cfg.safe_radius or 8)
+			if hostiles == 0 then
+				fallback = { cx, cz }
+				break
+			elseif fallback == nil then
+				--Guarda o primeiro pisável como plano B: teleportar pra perto de um
+				--hostil ainda é melhor que ficar exatamente onde já se está apanhando.
+				fallback = { cx, cz }
+			end
+		end
+	end
+
+	if fallback == nil then
+		return false
+	end
+
+	if Prefabs["statue_transition_2"] ~= nil then
+		SpawnPrefab("statue_transition_2").Transform:SetPosition(x, y, z)
+	end
+	inst.Physics:Teleport(fallback[1], y, fallback[2])
+	if Prefabs["statue_transition_2"] ~= nil then
+		SpawnPrefab("statue_transition_2").Transform:SetPosition(fallback[1], y, fallback[2])
+	end
+	return true
+end
+
+local function OnFormAttacked(inst)
+	local cfg = TUNING.WUNNY_BUNNYFORM_BLINK or {}
+	local now = GetTime()
+	if inst._bunnyform_blink_t ~= nil and now - inst._bunnyform_blink_t < (cfg.cooldown or 8) then
+		return
+	end
+	if math.random() >= (cfg.chance or 0.25) then
+		return
+	end
+	if TryBlink(inst) then
+		inst._bunnyform_blink_t = now
+	end
+end
+
 local function ApplyFormEffects(inst, form)
 	local combat = inst.components.combat
 	local loco = inst.components.locomotor
@@ -421,9 +501,32 @@ local function ApplyFormEffects(inst, form)
 	inst:AddTag("bunnyform")
 	inst:AddTag("bunnyman")
 
+	--TRABALHO SEM FERRAMENTA. Mesmo mecanismo do werebeaver (woodie.lua:846): o component
+	--"worker" é o que o workable:WorkedBy consulta quando o executor não tem ferramenta na
+	--mão. Sem ele a ação chega ao servidor e trabalha ZERO, silenciosamente.
+	--
+	--A Wunny normal não tem "worker", então dá pra remover o component inteiro na volta em
+	--vez de guardar estado anterior. A tag "bunnyform_worker" é o que o coletor de ações no
+	--modmain lê pra oferecer o verbo no clique — o component em si é só de servidor e o
+	--cliente não enxerga.
+	if form.work ~= nil and inst.components.worker == nil then
+		inst:AddComponent("worker")
+		for actname, eff in pairs(form.work) do
+			if ACTIONS[actname] ~= nil then
+				inst.components.worker:SetAction(ACTIONS[actname], eff)
+				inst:AddTag(actname .. "_bunnywork")
+			end
+		end
+	end
+
+	--Teleporte de fuga da shadow.
+	if form.blink then
+		inst:ListenForEvent("attacked", OnFormAttacked)
+	end
+
 	--Dreno de sanidade (só a shadow, por padrão). O custo geral da forma já é o bloqueio
-	--de chop/mine/dig/build/pesca — não faz sentido empilhar dreno em todas. A shadow é a
-	--exceção porque o tema pede.
+	--de craft e pesca e o fato de não poder usar equipamento — não faz sentido empilhar
+	--dreno em todas. A shadow é a exceção porque o tema pede.
 	--
 	--Tarefa periódica em vez de sanity.custom_rate_fn: aquele campo é único e a Wunny já
 	--tem vários sistemas de sanidade concorrendo (aura de fogo da Willow, almas do
@@ -479,6 +582,19 @@ local function ClearFormEffects(inst)
 		inst._bunnyform_sanitytask:Cancel()
 		inst._bunnyform_sanitytask = nil
 	end
+
+	--Trabalho sem ferramenta: a Wunny fora da forma não tem "worker", então o component
+	--sai inteiro em vez de ser restaurado. As tags têm de sair junto, senão o coletor de
+	--ações continuaria oferecendo cortar/minerar de mão limpa fora da forma.
+	if inst.components.worker ~= nil then
+		inst:RemoveComponent("worker")
+	end
+	for _, actname in ipairs({ "CHOP", "MINE", "DIG", "HAMMER" }) do
+		inst:RemoveTag(actname .. "_bunnywork")
+	end
+
+	inst:RemoveEventCallback("attacked", OnFormAttacked)
+	inst._bunnyform_blink_t = nil
 
 	inst:RemoveTag("bunnyform")
 	inst:RemoveTag("bunnyman")
@@ -1154,16 +1270,21 @@ local function PatchStategraph(sg)
 			local weapon = inst.components.combat:GetWeapon()
 			inst.AnimState:PlayAnimation(weapon ~= nil and "atk_object" or "atk")
 			inst.sg.statemem.target = target
+
+			--ACELERAÇÃO DO ATAQUE (mesmo par de alavancas do salto, wunny_jumpwall.lua:291):
+			--SetDeltaTimeMultiplier acelera a IMAGEM, SetTimeout acelera a LÓGICA. Os dois
+			--têm de andar juntos, senão o golpe sai fora de sincronia com a animação.
+			--
+			--O golpe é dado no ontimeout, não num TimeEvent: TimeEvent é fixado quando o
+			--estado é DEFINIDO, e a taxa depende do tier, que só se sabe aqui dentro.
+			local form = GetForm(inst)
+			local rate = form ~= nil and form.attackrate or 1
+			inst.AnimState:SetDeltaTimeMultiplier(rate)
+			inst.sg:SetTimeout(13 * FRAMES / rate)
 		end,
 
-		timeline = {
-			TimeEvent(13 * FRAMES, function(inst)
-				inst:PerformBufferedAction()
-				inst.sg:RemoveStateTag("abouttoattack")
-			end),
-		},
-
 		ontimeout = function(inst)
+			inst:PerformBufferedAction()
 			inst.sg:RemoveStateTag("abouttoattack")
 		end,
 
@@ -1176,6 +1297,7 @@ local function PatchStategraph(sg)
 		},
 
 		onexit = function(inst)
+			inst.AnimState:SetDeltaTimeMultiplier(1)
 			inst.components.combat:SetTarget(nil)
 			inst.sg:RemoveStateTag("abouttoattack")
 		end,
