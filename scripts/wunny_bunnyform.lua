@@ -1033,8 +1033,17 @@ end
 --anim/player_boat_jump.zip para o wilson e em anim/manrabbit_boat_jump.zip para o
 --manrabbit. Desviá-lo para "bunnyform_action" só trocaria um pulo funcionando por um
 --"atk" no lugar.
+--Soul hop (Wortox): TryToSoulhop (scripts/actions.lua) só completa a ação se
+--inst.sg.currentstate.name for LITERALMENTE "portal_jumpin_pre" — é uma checagem de
+--string dentro do vanilla, não dá pra satisfazer com um estado "bunnyform_*"
+--equivalente. Por isso os três precisam passar direto em vez de cair no fallback
+--"bunnyform_action"; a troca de animação pra algo que existe no bank manrabbit é
+--feita à parte, em PatchSoulhop.
 local SAFE_STATES_IN_FORM = {
 	wunny_jumpwall = true,
+	portal_jumpin_pre = true,
+	portal_jumpin = true,
+	portal_jumpout = true,
 }
 
 --Registra o actionhandler da ação de sintonizar. Vale para o SGwilson e para o
@@ -1102,6 +1111,39 @@ local function PatchEquipEvents(sg)
 				end
 				return old.fn(inst, data)
 			end)
+		end
+	end
+end
+
+--"portal_jumpin_pre" toca "wortox_portal_jumpin_pre" e só sai do estado quando o
+--evento "animover" dispara com AnimDone() == true (SGwilson.lua:20669+). Essa anim não
+--existe no bank manrabbit: o jogador some da tela (mesmo bug do comentário de
+--BLOCKED_ACTION_NAMES acima) e, pior, se "animover" nunca disparar pra uma animação
+--inexistente, o estado fica preso em "busy" pra sempre. Trocamos só a chamada de
+--PlayAnimation por "atk" — a única anim de ação que o bank tem — mantendo o resto do
+--estado (o ForceFacePoint e o evento animover) intacto, então o teleporte em si
+--continua idêntico ao vanilla.
+--
+--"portal_jumpin"/"portal_jumpout" têm o mesmo problema de anim ausente, mas saem do
+--estado por SetTimeout, não por animover: sem susbtituir a animação, o jogador fica
+--invisível por ~0.4s/0.56s mas o teleporte, a invencibilidade e os FX continuam
+--funcionando — não fizemos a troca aqui pra não duplicar toda aquela lógica (tints,
+--skilltree, física) só por causa de um sumiço cosmético e breve.
+local function PatchSoulhop(sg)
+	local portal_jumpin_pre = sg.states["portal_jumpin_pre"]
+	if portal_jumpin_pre ~= nil and portal_jumpin_pre.onenter ~= nil then
+		local old_onenter = portal_jumpin_pre.onenter
+		portal_jumpin_pre.onenter = function(inst)
+			if inst:HasTag("bunnyform") then
+				inst.components.locomotor:Stop()
+				inst.AnimState:PlayAnimation("atk")
+				local buffaction = inst:GetBufferedAction()
+				if buffaction ~= nil and buffaction.pos ~= nil then
+					inst:ForceFacePoint(buffaction:GetActionPoint():Get())
+				end
+				return
+			end
+			return old_onenter(inst)
 		end
 	end
 end
@@ -1400,6 +1442,7 @@ local function PatchStategraph(sg)
 	--na linha 2035 — fazemos o mesmo teste com a nossa tag. Trocar de item na forma
 	--simplesmente não tem animação de troca, o que é o comportamento certo.
 	PatchEquipEvents(sg)
+	PatchSoulhop(sg)
 
 	--Rede de segurança geral. Em vez de listar quais ações não têm animação — o que já
 	--falhou três vezes, sempre sobrando uma (TOSS, os emotes, ações de outros mods) —
