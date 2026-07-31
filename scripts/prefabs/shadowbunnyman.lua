@@ -607,6 +607,30 @@ local function fn()
     ------------------------------------------
     MakeMediumFreezableCharacter(inst, "pig_torso")
 
+    --IMUNE A CONGELAMENTO E A QUEIMADURA.
+    --
+    --Os components continuam instalados de proposito, em vez de simplesmente nao serem
+    --adicionados: GetStatus (linha ~376) consulta burnable:IsBurning() e
+    --freezable:IsFrozen(), e MakeMediumBurnableCharacter tambem instala o propagator,
+    --que e o que faz o fogo se ESPALHAR a partir dele. Removidos, isso tudo quebraria
+    --junto. Entao o caminho e neutralizar os dois efeitos, nao apagar as pecas.
+    --
+    --Congelar: SetRedirectFn e o gancho oficial do proprio component
+    --(freezable.lua:133) -- devolver true no comeco de AddColdness engole a friagem
+    --inteira, antes de somar coldness ou tingir de azul. Resistencia alta nao serviria:
+    --ela so eleva o limiar, entao staff de gelo empilhado ainda congelaria, e o
+    --personagem ficaria azulado no caminho.
+    --
+    --Queimar: sao DUAS coisas distintas e as duas precisam ser tratadas.
+    --  - pegar fogo -> a tag "fireimmune", que Burnable:Ignite e StartWildfire checam
+    --    (burnable.lua:352 e :251) antes de acender qualquer coisa;
+    --  - levar dano de fogo -> health.fire_damage_scale, que e por onde o propagator
+    --    aplica o dano de estar PERTO da chama (propagator.lua:232). A tag sozinha nao
+    --    cobre esse caso: sem pegar fogo, ele ainda cozinharia ao lado de uma fogueira.
+    inst.components.freezable:SetRedirectFn(function() return true end)
+    inst:AddTag("fireimmune")
+    inst.components.health.fire_damage_scale = 0
+
     ------------------------------------------
 
     inst:AddComponent("inspectable")

@@ -121,6 +121,10 @@ local function MakeForm(build, tier, extra)
 		--Atravessar estruturas (só a shadow, tier 4), igual ao NPC shadowbunnyman.
 		--Ver ApplyFormPhysics.
 		nocollide = tier == 4,
+
+		--Imunidade a congelamento e a queimadura (só a shadow, tier 4), igual ao NPC
+		--shadowbunnyman. Ver ApplyElementImmunity.
+		elementimmune = tier == 4,
 	}
 	if extra ~= nil then
 		for k, v in pairs(extra) do
@@ -525,6 +529,88 @@ local function OnFormAttacked(inst)
 	end
 end
 
+--------------------------------------------------------------------------------------
+-- IMUNIDADE A CONGELAMENTO E A QUEIMADURA (só a forma shadow)
+--
+-- Mesmo tratamento do NPC shadowbunnyman (ver o comentário lá, ao lado do
+-- MakeMediumFreezableCharacter): não removemos component nenhum, só neutralizamos os
+-- dois efeitos.
+--   congelar -> freezable:SetRedirectFn, o gancho oficial do component: devolver true
+--               engole a friagem no começo de AddColdness, antes de somar coldness ou
+--               tingir de azul. Subir a resistência não bastaria — ela só eleva o
+--               limiar, então gelo empilhado ainda congelaria.
+--   queimar  -> a tag "fireimmune" impede PEGAR fogo (checada em Burnable:Ignite), e
+--               health.fire_damage_scale = 0 impede LEVAR dano de estar perto da chama
+--               (é por onde o propagator aplica). São dois caminhos distintos e os dois
+--               precisam ser fechados.
+--
+-- Diferente da colisão, isto fica aqui e não em ApplyVisual: freezable, burnable e
+-- health são componentes só de servidor — o cliente não tem o que aplicar.
+--
+-- Os valores anteriores são guardados em vez de reescritos na mão porque a Wunny já
+-- mexe em freezable (wunny.lua:735 SetResistance, :3593 onfreezefn) e pode ganhar
+-- modificadores de fogo por outros sistemas. Assumir "o padrão é 1 e nenhum redirect"
+-- apagaria o que estivesse lá.
+--------------------------------------------------------------------------------------
+local function AlwaysRedirectColdness()
+	return true
+end
+
+local function ApplyElementImmunity(inst)
+	local freezable = inst.components.freezable
+	if freezable ~= nil then
+		inst._bunnyform_prev_redirect = freezable.redirectfn or false
+		freezable:SetRedirectFn(AlwaysRedirectColdness)
+		--Entrar na forma JÁ congelada não descongelaria sozinho: o redirect só bloqueia
+		--friagem nova, e o gelo atual seguiria até o wearoff.
+		if freezable:IsFrozen() then
+			freezable:Unfreeze()
+		end
+	end
+
+	local health = inst.components.health
+	if health ~= nil then
+		inst._bunnyform_prev_firescale = health.fire_damage_scale
+		health.fire_damage_scale = 0
+	end
+
+	--Só marcamos como nossa se ela ainda não estava lá, pra não arrancar na volta uma
+	--imunidade que veio de outro sistema.
+	if not inst:HasTag("fireimmune") then
+		inst:AddTag("fireimmune")
+		inst._bunnyform_firetag = true
+	end
+
+	--Mesma lógica do gelo: a tag impede acender de novo, não apaga o que já pegou.
+	local burnable = inst.components.burnable
+	if burnable ~= nil then
+		if burnable:IsBurning() then
+			burnable:Extinguish()
+		elseif burnable:IsSmoldering() then
+			burnable:StopSmoldering()
+		end
+	end
+end
+
+local function ClearElementImmunity(inst)
+	local freezable = inst.components.freezable
+	if freezable ~= nil and inst._bunnyform_prev_redirect ~= nil then
+		freezable:SetRedirectFn(inst._bunnyform_prev_redirect or nil)
+	end
+	inst._bunnyform_prev_redirect = nil
+
+	local health = inst.components.health
+	if health ~= nil and inst._bunnyform_prev_firescale ~= nil then
+		health.fire_damage_scale = inst._bunnyform_prev_firescale
+	end
+	inst._bunnyform_prev_firescale = nil
+
+	if inst._bunnyform_firetag then
+		inst:RemoveTag("fireimmune")
+		inst._bunnyform_firetag = nil
+	end
+end
+
 local function ApplyFormEffects(inst, form)
 	local combat = inst.components.combat
 	local loco = inst.components.locomotor
@@ -569,6 +655,11 @@ local function ApplyFormEffects(inst, form)
 				inst:AddTag(actname .. "_bunnywork")
 			end
 		end
+	end
+
+	--Imunidade a gelo e fogo da shadow.
+	if form.elementimmune then
+		ApplyElementImmunity(inst)
 	end
 
 	--Teleporte de fuga da shadow.
@@ -627,6 +718,10 @@ local function ClearFormEffects(inst)
 	if inst.components.health ~= nil then
 		inst.components.health:SetAbsorptionAmount(0)
 	end
+
+	--Incondicional, não sob "if form.elementimmune": ClearFormEffects não recebe a forma,
+	--e as funções são no-op quando não há nada guardado.
+	ClearElementImmunity(inst)
 
 	--Sem isto o dreno da shadow continua rodando depois de voltar ao normal (e um
 	--segundo dreno se soma a cada nova transformação).
