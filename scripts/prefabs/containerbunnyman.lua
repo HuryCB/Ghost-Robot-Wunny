@@ -11,10 +11,10 @@ local assets =
     Asset("ANIM", "anim/manrabbit_beard_actions.zip"),
     Asset("SOUND", "sound/bunnyman.fsb"),
 
-    --Baú nas costas: mesma técnica do sunkenchest vanilla (swap_body), só que fixo em
-    --vez de equipável, já que este bunnyman É o container ambulante (container:WidgetSetup
-    --"wobybig" mais abaixo).
-    Asset("ANIM", "anim/swap_sunken_treasurechest.zip"),
+    --Baú nas costas: o rig do manrabbit NAO tem o simbolo "swap_body" (so o rig do jogador
+    --tem), entao a tecnica do sunkenchest equipavel nao funciona aqui. Em vez disso usamos
+    --o build do bau de mundo preso como entidade filha no simbolo do torso (ver ChestFx).
+    Asset("ANIM", "anim/sunken_treasurechest.zip"),
 }
 
 local prefabs =
@@ -303,6 +303,44 @@ local function OnLoad(inst)
 	end
 end
 
+--Ajustes visuais do bau nas costas. Mexer aqui para reposicionar/redimensionar.
+--Lembrando que em coordenadas de anim o Y NEGATIVO e para CIMA.
+local CHEST_SCALE = 0.4
+local CHEST_OFFSET_X = 0
+local CHEST_OFFSET_Y = -25
+local CHEST_OFFSET_Z = 0
+
+--O rig do manrabbit nao possui o simbolo "swap_body" usado por mochilas/armaduras do
+--jogador, entao nao da para trocar o simbolo direto no bunnyman. Em vez disso criamos uma
+--entidade filha nao-networkada (mesmo padrao dos fx de follow do jogo base) que segue o
+--simbolo "manrabbit_torso". Com followlayered = true ela e ordenada junto com as camadas
+--da animacao do bunnyman, entao fica atras dele quando ele encara a camera - lendo como um
+--bau carregado nas costas.
+local function AttachChestFx(inst)
+    local fx = CreateEntity()
+    fx:AddTag("FX")
+    --[[Non-networked entity]]
+    fx.persists = false
+
+    fx.entity:AddTransform()
+    fx.entity:AddAnimState()
+    fx.entity:AddFollower()
+
+    fx.AnimState:SetBank("sunken_treasurechest")
+    fx.AnimState:SetBuild("sunken_treasurechest")
+    fx.AnimState:PlayAnimation("closed")
+    fx.AnimState:SetScale(CHEST_SCALE, CHEST_SCALE)
+
+    fx.entity:SetParent(inst.entity)
+    fx.Follower:FollowSymbol(inst.GUID, "manrabbit_torso",
+        CHEST_OFFSET_X, CHEST_OFFSET_Y, CHEST_OFFSET_Z, true)
+
+    --Sem isso o contorno de mouse-over acenderia so o corpo do bunnyman, e nao o bau.
+    inst.highlightchildren = { fx }
+
+    inst.chestfx = fx
+end
+
 local function fn()
     local inst = CreateEntity()
 
@@ -332,10 +370,12 @@ local function fn()
     inst.AnimState:Hide("ARM_carry")
     inst.AnimState:Hide("HAIR_HAT")
 
-    --Baú fixo nas costas, indicando visualmente que este bunnyman carrega itens (mesmo
-    --símbolo "swap_body" que armaduras/mochilas usam, só que aplicado direto no rig em
-    --vez de via equippable:SetOnEquip).
-    inst.AnimState:OverrideSymbol("swap_body", "swap_sunken_treasurechest", "swap_body")
+    --Bau fixo nas costas, indicando visualmente que este bunnyman carrega itens. Precisa ser
+    --criado aqui no trecho comum (antes do SetPristine / do return de cliente) para que os
+    --clientes tambem montem o fx. Servidor dedicado nao renderiza nada, entao pula.
+    if not TheNet:IsDedicated() then
+        AttachChestFx(inst)
+    end
 
     inst.AnimState:SetClientsideBuildOverride("insane", "manrabbit_build", "manrabbit_beard_build")
 
