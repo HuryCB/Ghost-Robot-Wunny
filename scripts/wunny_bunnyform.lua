@@ -117,6 +117,10 @@ local function MakeForm(build, tier, extra)
 
 		--Teleporte de fuga ao levar dano (só a shadow, tier 4).
 		blink = tier == 4,
+
+		--Atravessar estruturas (só a shadow, tier 4), igual ao NPC shadowbunnyman.
+		--Ver ApplyFormPhysics.
+		nocollide = tier == 4,
 	}
 	if extra ~= nil then
 		for k, v in pairs(extra) do
@@ -359,8 +363,56 @@ local function RefreshHatSymbols(inst)
 end
 
 --------------------------------------------------------------------------------------
+-- COLISÃO COM ESTRUTURAS (só a forma shadow)
+--
+-- Mesma coisa que o NPC shadowbunnyman faz na sua MakeCharacterPhysics: tirar os bits
+-- OBSTACLES e SMALLOBSTACLES da MÁSCARA, mantendo o grupo CHARACTERS. Assim a Wunny
+-- atravessa parede/baú/casa mas continua esbarrando em mobs e jogadores, e continua
+-- barrada pelo oceano e pela borda do barco (esses são LAND_OCEAN_LIMITS/BOAT_LIMITS,
+-- que vêm dentro de COLLISION.WORLD e por isso ficam).
+--
+-- POR QUE ISTO RODA NOS DOIS LADOS, e não junto com o resto dos efeitos em
+-- ApplyFormEffects: a física do jogador é simulada localmente para a predição de
+-- movimento. Se só o servidor limpasse a máscara, o cliente continuaria esbarrando na
+-- parede e sendo puxado de volta pela correção do servidor a cada frame — o efeito
+-- clássico de elástico. Por isso o gancho é ApplyVisual, que é o caminho que roda tanto
+-- no host quanto em todo cliente (via bunnyformdirty).
+--
+-- A máscara anterior é lida em vez de reescrita na mão porque wunny_jumpwall.lua também
+-- mexe nela durante o salto: restaurar um valor "de fábrica" fixo apagaria o dele.
+--------------------------------------------------------------------------------------
+local function ApplyFormPhysics(inst, form)
+	if inst.Physics == nil then
+		return
+	end
+
+	if form ~= nil and form.nocollide then
+		if inst._bunnyform_prevmask == nil then
+			inst._bunnyform_prevmask = inst.Physics:GetCollisionMask()
+		end
+		inst.Physics:SetCollisionMask(
+			COLLISION.WORLD,
+			COLLISION.CHARACTERS,
+			COLLISION.GIANTS
+		)
+	elseif inst._bunnyform_prevmask ~= nil then
+		--Morrer na forma passa por aqui (OnBecameGhost -> ApplyVisual), e nesse momento o
+		--vanilla JÁ trocou a física para a de fantasma (MakeGhostPhysics, que atravessa
+		--tudo). Restaurar a máscara de personagem por cima faria o fantasma esbarrar em
+		--parede. Basta descartar o valor guardado: quem revive refaz a física de
+		--personagem do zero, então não há o que restaurar depois.
+		if not inst:HasTag("playerghost") then
+			inst.Physics:SetCollisionMask(inst._bunnyform_prevmask)
+		end
+		inst._bunnyform_prevmask = nil
+	end
+end
+
+--------------------------------------------------------------------------------------
 local function ApplyVisual(inst)
 	local form = GetForm(inst)
+
+	ApplyFormPhysics(inst, form)
 
 	if form == nil then
 		--Solta o proxy ANTES de qualquer coisa: o bank wilson tem todas as animações, e

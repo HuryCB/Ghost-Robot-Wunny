@@ -458,6 +458,23 @@ local function fn()
     -- MakeCharacterPhysics(inst, 50, .5)
     MakeCharacterPhysics(inst, 75, .75)
 
+    --Atravessa estruturas, como convem a um coelho de sombra.
+    --
+    --E MASCARA, nao grupo: continuamos em COLLISION.CHARACTERS, entao mobs e jogadores
+    --seguem esbarrando nele normalmente. So saem da mascara OBSTACLES (paredes, cofres,
+    --casas, fogueiras...) e SMALLOBSTACLES (as estruturas pequenas, que usam grupo
+    --proprio) -- ver MakeCharacterPhysics em standardcomponents.lua:409, que e a lista
+    --original menos esses dois bits.
+    --
+    --COLLISION.WORLD FICA: ele carrega LAND_OCEAN_LIMITS e BOAT_LIMITS, ou seja, a
+    --barreira que impede de andar pra dentro do oceano e de cair do barco. Tirar tambem
+    --esse bit faria o coelho afogar sozinho.
+    inst.Physics:SetCollisionMask(
+        COLLISION.WORLD,
+        COLLISION.CHARACTERS,
+        COLLISION.GIANTS
+    )
+
     -- inst.DynamicShadow:SetSize(1.5, .75)
     inst.DynamicShadow:SetSize(1.5, .75)
     inst.Transform:SetFourFaced()
