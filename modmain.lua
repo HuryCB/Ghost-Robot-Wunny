@@ -380,8 +380,13 @@ TUNING.WUNNY_JUMP_RATE = 2                 -- aceleração global do salto: encu
 TUNING.WUNNY_JUMPFREE_DIST = 4.5           -- alcance do salto livre (tecla V), em unidades; encurta sozinho se o ponto cheio não for pisável
 TUNING.WUNNY_BUNNYFOLLOWER_DAMAGE = 1      -- dano do coelho selvagem domesticado (cenoura) no combate "bate e foge"
 
--- Escada das formas de bunnyman (wunny_bunnyform.lua). Índice = tier, na mesma ordem de
--- FORM_ORDER: 1 base, 2 day, 3 everything, 4 shadow.
+-- Escada das formas de bunnyman (wunny_bunnyform.lua). Índice = tier:
+-- 1 base, 2 day, 3 everything, 4 shadow, 5 ultra.
+--
+-- O tier de cada forma é o 2º argumento do MakeForm, não a posição dela em FORM_ORDER.
+-- Hoje as duas listas coincidem, mas é coincidência e não deve ser assumida: FORM_ORDER
+-- é índice de REDE (só cresce no fim, pra não invalidar save), enquanto o tier é
+-- balanceamento e pode ser reordenado à vontade.
 --
 -- damage/speed são MULTIPLICADORES sobre TUNING.BUNNYMAN_*. absorption é redução de dano
 -- recebido (0.35 = -35%).
@@ -405,7 +410,7 @@ TUNING.WUNNY_BUNNYFOLLOWER_DAMAGE = 1      -- dano do coelho selvagem domesticad
 --
 -- Estes números divergem de propósito dos prefabs de NPC das variantes, onde todas têm
 -- praticamente o mesmo combate (elas se distinguem pelo brain, que o jogador não usa).
--- Sem a escada, os quatro tiers dariam a mesma sensação de jogo.
+-- Sem a escada, os tiers dariam todos a mesma sensação de jogo.
 TUNING.WUNNY_BUNNYFORM_LADDER = {
     { damage = 1.00, attackrate = 1.00, speed = 1.00, absorption = 0.20,
       work = { CHOP = 1,   MINE = nil, DIG = nil, HAMMER = 0.25 } },
@@ -417,6 +422,17 @@ TUNING.WUNNY_BUNNYFORM_LADDER = {
     -- build/pesca. sanitydrain é por SEGUNDO.
     { damage = 1.50, attackrate = 1.40, speed = 1.30, absorption = 0.35, sanitydrain = 1.5,
       work = { CHOP = 4,   MINE = 2,   DIG = 1.5, HAMMER = 1.5 } },
+    -- Tier 5, a ultra. NÃO é "shadow + um pouco": é o topo do braço SUSTENTÁVEL da
+    -- escada. Ela ganha da shadow em todo número bruto e não cobra sanidade, mas não
+    -- tem nenhuma das utilidades da shadow (blink, atravessar estrutura, imunidade a
+    -- gelo/fogo). Assim a escolha entre as duas é situacional em vez de "a última é a
+    -- melhor": ultra pra farmar e lutar de frente, shadow pra sobreviver e escapar.
+    --
+    -- attackrange é exclusivo dela e vem do NPC (ultrabunnyman.lua:738, SetRange(3+2));
+    -- é a única variante do mod que estende alcance. O padrão do jogador é
+    -- TUNING.DEFAULT_ATTACK_RANGE = 3 (player_common.lua:2705), então aqui é +2.
+    { damage = 1.60, attackrate = 1.50, speed = 1.35, absorption = 0.35, attackrange = 5,
+      work = { CHOP = 5,   MINE = 2.5, DIG = 2,   HAMMER = 2 } },
 }
 
 -- Teleporte de fuga da forma shadow (tier 4), ao levar dano. Ver ApplyFormEffects.

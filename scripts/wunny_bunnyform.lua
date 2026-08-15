@@ -51,10 +51,10 @@
 	--------------------------------------------------------------------------------
 	ESTADO DESTE ARQUIVO
 	--------------------------------------------------------------------------------
-	Quatro formas jogáveis, uma por build de arte existente: bunnyman (manrabbit_build),
-	daybunnyman, everythingbunnyman e shadowbunnyman. new/dwarf/ultra ficam de FORA por
-	reusarem manrabbit_build — seriam desbloqueios visualmente idênticos ao base. Ver o
-	comentário sobre isso logo acima de FORMS.
+	Cinco formas jogáveis, uma por build de arte existente: bunnyman (manrabbit_build),
+	daybunnyman, everythingbunnyman, shadowbunnyman e ultrabunnyman. new/dwarf ficam de
+	FORA por reusarem manrabbit_build — seriam desbloqueios visualmente idênticos ao base.
+	Ver o comentário sobre isso logo acima de FORMS.
 
 	Acesso: a casa da variante destrava a forma e define qual delas a tecla B ativa
 	(ação WUNNY_BUNNYFORM_ATTUNE em modmain.lua); a tecla entra e sai. Ver o bloco
@@ -62,20 +62,32 @@
 ]]
 
 --------------------------------------------------------------------------------------
--- QUAIS VARIANTES VIRAM FORMA JOGÁVEL, E POR QUÊ SÓ ESTAS QUATRO
+-- QUAIS VARIANTES VIRAM FORMA JOGÁVEL, E POR QUÊ SÓ ESTAS CINCO
 --
--- O mod tem sete bunnymen, mas só QUATRO builds de arte distintos:
---     manrabbit_build, daymanrabbit_build, everythingmanrabbit_build, shadowmanrabbit_build
--- "newbunnyman", "dwarfbunnyman" e "ultrabunnyman" reusam manrabbit_build, ou seja, são
--- visualmente idênticos ao bunnyman base. Expor os sete daria ao jogador três
--- desbloqueios que não mudam nada na tela — pior do que não existirem. Eles continuam
--- como tropa do exército, que é onde a diferença deles (brain/comportamento) aparece.
+-- O mod tem sete bunnymen, mas só CINCO builds de arte distintos:
+--     manrabbit_build, daymanrabbit_build, everythingmanrabbit_build,
+--     shadowmanrabbit_build, ultramanrabbit_build
+-- "newbunnyman" e "dwarfbunnyman" reusam manrabbit_build, ou seja, são visualmente
+-- idênticos ao bunnyman base. Expor os sete daria ao jogador dois desbloqueios que não
+-- mudam nada na tela — pior do que não existirem. Eles continuam como tropa do exército,
+-- que é onde a diferença deles (brain/comportamento) aparece.
+--
+-- CUIDADO ao reconferir isto: o build de um bunnyman aparece em DOIS lugares no prefab
+-- dele (o SetBuild do client-side fn e o do master), e o `manrabbit_beard_build` no meio
+-- confunde a leitura rápida — ele é o override de barba do modo insano, não a build da
+-- variante. Uma revisão anterior deste comentário listou o ultra como reuso de
+-- manrabbit_build por causa disso; ele usa ultramanrabbit_build
+-- (ultrabunnyman.lua:238 e :586), e anim/ultramanrabbit_build.zip existe.
 --
 -- Os NÚMEROS abaixo NÃO são os dos prefabs de NPC. Lá as variantes são quase idênticas
 -- em combate (todas ~110/100 de dano, 120/100 de velocidade) porque se diferenciam pelo
--- brain, que o jogador não usa. Como forma jogável isso deixaria os quatro tiers com a
--- mesma sensação, então aqui existe uma escada deliberada, exposta em TUNING pra ser
--- ajustada sem mexer neste arquivo.
+-- brain, que o jogador não usa. Como forma jogável isso deixaria os tiers com a mesma
+-- sensação, então aqui existe uma escada deliberada, exposta em TUNING pra ser ajustada
+-- sem mexer neste arquivo.
+--
+-- A escada NÃO é uma linha reta até a shadow. Os tiers 1-3 são progressão; no topo há
+-- uma bifurcação: tier 4 (shadow) é utilidade paga em sanidade, tier 5 (ultra) é força
+-- bruta sustentável. Ver o comentário do tier 5 no LADDER em modmain.lua.
 --------------------------------------------------------------------------------------
 local LADDER = TUNING.WUNNY_BUNNYFORM_LADDER or {}
 
@@ -107,6 +119,10 @@ local function MakeForm(build, tier, extra)
 		attackrate = t.attackrate or 1,
 		attackperiod = TUNING.WILSON_ATTACK_PERIOD / (t.attackrate or 1),
 
+		--Alcance de ataque, em unidades. nil = não mexe (fica o DEFAULT_ATTACK_RANGE do
+		--jogador). Só a ultra usa; ver ApplyFormEffects.
+		attackrange = t.attackrange,
+
 		--Eficiências de trabalho sem ferramenta (component "worker"). Ver o comentário do
 		--LADDER em modmain.lua.
 		work = t.work,
@@ -115,16 +131,16 @@ local function MakeForm(build, tier, extra)
 		--Só a shadow usa; ver o comentário em ApplyFormEffects.
 		sanitydrain = t.sanitydrain or 0,
 
-		--Teleporte de fuga ao levar dano (só a shadow, tier 4).
-		blink = tier == 4,
-
-		--Atravessar estruturas (só a shadow, tier 4), igual ao NPC shadowbunnyman.
-		--Ver ApplyFormPhysics.
-		nocollide = tier == 4,
-
-		--Imunidade a congelamento e a queimadura (só a shadow, tier 4), igual ao NPC
-		--shadowbunnyman. Ver ApplyElementImmunity.
-		elementimmune = tier == 4,
+		--As três utilidades da shadow. Vêm por `extra` e NÃO por comparação de tier: a
+		--escada deixou de ser monótona quando a ultra entrou como tier 5, então "tier
+		--alto" não implica mais "tem os poderes da shadow". Quem define é o FORMS abaixo.
+		--
+		--blink: teleporte de fuga ao levar dano.
+		--nocollide: atravessar estruturas, igual ao NPC shadowbunnyman (ApplyFormPhysics).
+		--elementimmune: imunidade a congelamento e queimadura (ApplyElementImmunity).
+		blink = false,
+		nocollide = false,
+		elementimmune = false,
 	}
 	if extra ~= nil then
 		for k, v in pairs(extra) do
@@ -138,7 +154,9 @@ local FORMS = {
 	bunnyman           = MakeForm("manrabbit_build", 1),
 	daybunnyman        = MakeForm("daymanrabbit_build", 2),
 	everythingbunnyman = MakeForm("everythingmanrabbit_build", 3),
-	shadowbunnyman     = MakeForm("shadowmanrabbit_build", 4),
+	shadowbunnyman     = MakeForm("shadowmanrabbit_build", 4,
+		{ blink = true, nocollide = true, elementimmune = true }),
+	ultrabunnyman      = MakeForm("ultramanrabbit_build", 5),
 }
 
 --A ordem define o índice do netvar (0 = forma nenhuma). Ao adicionar forma nova,
@@ -146,14 +164,20 @@ local FORMS = {
 --
 --_bunnyform é um net_tinybyte (3 bits): o teto real aqui é SETE formas. Passar disso
 --exige trocar o netvar por net_smallbyte em SetupNetvars, não só acrescentar na lista.
-local FORM_ORDER = { "bunnyman", "daybunnyman", "everythingbunnyman", "shadowbunnyman" }
+--
+--"ultrabunnyman" está no FIM e não entre o everything e o shadow justamente por essa
+--regra: pela escada ela é o tier 5, mas o índice de rede é posicional, e inseri-la no
+--meio renumeraria o shadow de 4 pra 5 em todo save existente.
+local FORM_ORDER = { "bunnyman", "daybunnyman", "everythingbunnyman", "shadowbunnyman",
+	"ultrabunnyman" }
 
 --------------------------------------------------------------------------------------
 -- Casa -> forma que ela sintoniza. É a ÚNICA fonte de verdade do vínculo; a ação em
 -- modmain.lua consulta esta tabela pra saber se a estrutura clicada vale alguma coisa.
 --
--- As casas das três variantes não-jogáveis (new/dwarf/ultra) ficam de fora de propósito:
--- clicar nelas não oferece a ação, em vez de oferecer e falhar.
+-- As casas das duas variantes não-jogáveis (new/dwarf) ficam de fora de propósito:
+-- clicar nelas não oferece a ação, em vez de oferecer e falhar. Exceção: a newbunnyhouse
+-- ESTÁ aqui, pelo motivo explicado logo abaixo.
 --------------------------------------------------------------------------------------
 --
 -- "newbunnyhouse" e não "bunnyhouse" para a forma base: bunnyhouse.lua existe no disco
@@ -167,6 +191,7 @@ local HOUSE_TO_FORM = {
 	daybunnyhouse        = "daybunnyman",
 	everythingbunnyhouse = "everythingbunnyman",
 	shadowbunnyhouse     = "shadowbunnyman",
+	ultrabunnyhouse      = "ultrabunnyman",
 }
 
 local FORM_INDEX = {}
@@ -620,11 +645,23 @@ local function ApplyFormEffects(inst, form)
 		attackperiod = combat ~= nil and combat.min_attack_period or nil,
 		runspeed = loco ~= nil and loco.runspeed or nil,
 		walkspeed = loco ~= nil and loco.walkspeed or nil,
+		attackrange = combat ~= nil and combat.attackrange or nil,
+		hitrange = combat ~= nil and combat.hitrange or nil,
 	}
 
 	if combat ~= nil then
 		combat:SetDefaultDamage(form.damage)
 		combat:SetAttackPeriod(form.attackperiod)
+
+		--Alcance estendido da ultra. SetRange e não atribuição direta em .attackrange:
+		--hitrange é um campo separado (combat.lua:148) e ficaria pra trás, e o setter
+		--de attackrange é que empurra o valor pro replica (combat.lua:4), que é o que o
+		--CLIENTE consulta na predição — sem isso a Wunny andaria até o alcance antigo
+		--antes de bater. Arma equipada continua somando por cima (CalcAttackRangeSq),
+		--mas na forma ela não usa equipamento, então na prática isto é o alcance final.
+		if form.attackrange ~= nil then
+			combat:SetRange(form.attackrange)
+		end
 	end
 	if loco ~= nil then
 		loco.runspeed = form.runspeed
@@ -702,6 +739,12 @@ local function ClearFormEffects(inst)
 			end
 			if prev.attackperiod ~= nil then
 				combat:SetAttackPeriod(prev.attackperiod)
+			end
+			--Restaurado sempre, mesmo que a forma não tivesse mexido: reescrever o
+			--alcance com o valor que já era o dele é inofensivo, e assim não depende de
+			--ClearFormEffects saber de qual forma está saindo (ela não recebe a forma).
+			if prev.attackrange ~= nil then
+				combat:SetRange(prev.attackrange, prev.hitrange)
 			end
 		end
 		if loco ~= nil then
@@ -822,7 +865,7 @@ end
 -- castor é um toggle livre.
 --
 -- Mas a casa não vira conteúdo morto depois do desbloqueio: é ela que define QUAL forma
--- a tecla ativa. Com quatro formas, uma tecla que cicla erraria o alvo em combate; assim
+-- a tecla ativa. Com cinco formas, uma tecla que cicla erraria o alvo em combate; assim
 -- a escolha é deliberada e feita fora de perigo, e o uso continua a um toque.
 --
 -- Tudo aqui é servidor: não há netvar de desbloqueio. A ação da casa é oferecida sempre
