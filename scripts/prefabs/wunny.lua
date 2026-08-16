@@ -9,6 +9,7 @@ local WalterWoby = require("wunny_walter_woby")
 local BunnyForm = require("wunny_bunnyform")
 local easing = require("easing")
 local WunnySkillTree = require("wunnyskilltree")
+local VirtualTags = require("wunny_virtualtags")
 
 local assets = {
 	Asset("SCRIPT", "scripts/prefabs/player_common.lua"),
@@ -1717,6 +1718,13 @@ end
 
 -- This initializes for both the server and client. Tags can be added here.
 local common_postinit = function(inst)
+	-- PRIMEIRA COISA do common_postinit: instala os shims de tag antes que qualquer
+	-- AddTag rode. A Wunny estourava o teto de 63 tags por entidade da engine (chegava
+	-- a 91), o que corrompia o stream de netvars e derrubava o cliente no
+	-- inventorybar.lua. Ver wunny_virtualtags.lua para o mecanismo e para a regra de
+	-- quais tags podem ou não virar virtuais.
+	VirtualTags.Install(inst)
+
 	-- Minimap icon
 	inst.MiniMapEntity:SetIcon("wunny.tex")
 

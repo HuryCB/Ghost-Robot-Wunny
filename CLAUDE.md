@@ -68,6 +68,30 @@ mistakes.
     `TUNING.MULTITOOL_AXE_PICKAXE_EFFICIENCY * 20`) — don't "fix" these back to vanilla values without
     confirming with the user first, they can be intentional power budget choices for this character.
 
+### The 63-tag limit (read before adding any tag to Wunny)
+The engine serializes each entity's tag list with a 6-bit counter — **63 tags maximum**. Because Wunny
+carries most of the cast's kit plus the `onactivate` effect of all 12 vanilla skill trees, she blew past
+it (91 tags), which corrupted her netvar stream and crashed every client in `inventorybar.lua:435`
+(`attempt to index local 'inventory' (a nil value)`) — the visible error is nowhere near the cause.
+
+`scripts/wunny_virtualtags.lua` fixes this. Only 6 call sites in the whole game use `entity:HasTag`
+(C++ direct); the other ~5000 go through the Lua `EntityScript:HasTag`, so the module shims
+`HasTag`/`HasAllTags`/`HasAnyTag`/`AddTag`/`RemoveTag`/`AddOrRemoveTag` **on the Wunny instance** and
+serves 41 tags from a plain Lua table instead of a network slot. `VirtualTags.Install(inst)` is the first
+statement of `common_postinit`, so it intercepts tags from `common_postinit`, from components added in
+`master_postinit`, and from `wunnyskilltree.lua`. It must stay in `common_postinit` (both sides): the
+client never runs the skill tree, so the preset in `Install` is what replication used to provide — without
+it `builder_replica.lua` would hide half the crafting menu.
+
+**When adding a tag to Wunny, decide whether it can be virtual:**
+```
+grep -rn '"minhatag"' scripts/ | grep -vE 'HasTag|AddTag|RemoveTag'
+```
+If it shows up in a `TheSim:FindEntities`/`FindEntity` call or in a `*_TAGS = {...}` table feeding one,
+the tag **must stay real** — C++ tag filtering can't see virtual tags. Same if the tag is toggled at
+runtime across the client/server boundary. Otherwise add it to `VIRTUAL` in `wunny_virtualtags.lua`.
+Tags deliberately kept real are listed with their reason in that file's header.
+
 ### The bunny army / companion system
 `scripts/prefabs/` contains a large family of bunny-themed companion prefabs beyond Wunny itself:
 bunnyman variants (`bunnyman`, `newbunnyman`, `daybunnyman`, `dwarfbunnyman`, `everythingbunnyman`,
