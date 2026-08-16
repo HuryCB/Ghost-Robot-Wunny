@@ -75,7 +75,10 @@ bunnyman variants (`bunnyman`, `newbunnyman`, `daybunnyman`, `dwarfbunnyman`, `e
 `bunnykingmanager` + `bunnykinghouse` (a leader/upgrade system, parallel to vanilla's Pig King), and
 `wunnywalrus` (a walrus-form companion with its own brain in `scripts/brains/wunnywalrusbrain.lua`).
 Matching stategraphs live in `scripts/stategraphs/SG*.lua` and brains in `scripts/brains/`.
-`scripts/globalFunctions/globalFunctions.lua` holds shared helper functions used across these prefabs.
+`scripts/wunny_globalfunctions.lua` holds shared helper functions used across these prefabs. It is required
+as `require("wunny_globalfunctions")` — module names are resolved against `scripts/` as a root, never as
+relative file paths (`require("../...")` breaks once other mods change the shared `package.path`), and the
+`wunny_` prefix keeps it out of the globally shared `package.loaded` namespace other mods also write to.
 
 ### Custom gear
 Wunny-specific tools/structures live alongside the character files in `scripts/prefabs/`:

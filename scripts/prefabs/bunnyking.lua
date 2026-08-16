@@ -33,7 +33,7 @@ local beardlordloot = { "beardhair", "beardhair", "monstermeat" }
 local forced_beardlordloot = { "nightmarefuel", "beardhair", "beardhair", "monstermeat" }
 
 local brain = require("brains/bunnykingbrain")
-local globalFunctions = require("../globalFunctions/globalFunctions")
+local globalFunctions = require("wunny_globalfunctions")
 
 local MAX_TARGET_SHARES = 5
 local SHARE_TARGET_DIST = 30

@@ -30,7 +30,7 @@ local forced_beardlordloot = { "nightmarefuel", "beardhair", "beardhair", "monst
 local brain = require("brains/everythingbunnymanbrain")
 
 local MAX_TARGET_SHARES = 5
-local globalFunctions = require("../globalFunctions/globalFunctions")
+local globalFunctions = require("wunny_globalfunctions")
 local SHARE_TARGET_DIST = 30
 
 local function SuggestTreeTarget(inst, data)

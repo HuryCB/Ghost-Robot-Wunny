@@ -451,7 +451,7 @@ TUNING.WUNNY_BUNNYFORM_BLINK = {
 -- Imagem do item inicial na TELA DE SELEÇÃO de personagem.
 --
 -- Em jogo o ícone do dwarfbunnyman vem de inventoryitem.imagename/.atlasname, definidos
--- em PickUpRabbit (globalFunctions.lua:58) — ou seja, de uma INSTÂNCIA já spawnada.
+-- em PickUpRabbit (wunny_globalfunctions.lua:58) — ou seja, de uma INSTÂNCIA já spawnada.
 -- A tela de seleção não spawna nada: ela só tem o nome do prefab e chama
 -- GetInventoryItemAtlas("dwarfbunnyman.tex", true) (templates.lua:2126), que procura
 -- apenas nos inventoryimages1..4 do jogo. Não achando, o no_fallback=true devolve nil e
