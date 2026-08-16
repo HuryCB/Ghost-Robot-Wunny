@@ -2,7 +2,7 @@
 name = "Wunny, 2026 version - Grande aumento de habilitades únicas"
 description = "Wunny, 2026 version - Grande aumento de habilitades únicas"
 author = "Hury"
-version = "1.0.3" -- This is the version of the template. Change it to your own number.
+version = "1.0.4" -- This is the version of the template. Change it to your own number.
 
 -- This is the URL name of the mod's thread on the forum; the part after the ? and before the first & in the url
 forumthread = "https://steamcommunity.com/sharedfiles/filedetails/?id=2937888827"

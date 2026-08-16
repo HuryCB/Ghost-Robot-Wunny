@@ -247,12 +247,28 @@ local function PatchStategraph(sg)
 		--obstáculo. Deixar outro estado assumir no meio é o que produz jogador preso
 		--dentro da parede.
 		--
-		--"pausepredict" + RemotePausePrediction, e NÃO "nopredict": este estado existe só
-		--no SGwilson (servidor). O cliente não tem estado equivalente, então se ele
-		--continuasse prevendo ficaria preso na parede localmente e a posição divergiria
-		--até o servidor corrigir num salto. É o mesmo par que os estados de transformação
-		--deste mod já usam, pela mesma razão.
-		tags = { "busy", "nointerrupt", "pausepredict", "nomorph", "nosleep", "jumping" },
+		--"pausepredict" + RemotePausePrediction: este estado existe só no SGwilson
+		--(servidor). O cliente não tem estado equivalente, então se ele continuasse
+		--prevendo ficaria preso na parede localmente e a posição divergiria até o servidor
+		--corrigir num salto. É o mesmo par que os estados de transformação deste mod usam.
+		--
+		--"nopredict" resolve um problema DIFERENTE, e é ele que impede a Wunny de voltar
+		--andando sozinha para o ponto de onde saltou. Num servidor dedicado o cliente manda
+		--de tempos em tempos a POSIÇÃO que ele prevê ocupar (RPC.PredictWalking) e o
+		--servidor a guarda em playercontroller.remote_vector. Enquanto o estado é "busy" o
+		--servidor chama só ClearRemotePredictData (playercontroller.lua:3043), que NÃO mexe
+		--nesse remote_vector — a última posição mandada antes do salto sobrevive ao voo
+		--inteiro. No primeiro frame em que o estado deixa de ser "busy", DoPredictWalking
+		--faz locomotor:RunInDirection() em direção a ela (playercontroller.lua:4036) e a
+		--Wunny anda de volta. Como este estado TELEPORTA, aquela posição é lixo por
+		--definição.
+		--"nopredict" é exatamente o sinal de "descarte o que o cliente disse": com ele
+		--presente, playercontroller.lua:3005 zera o remote_vector a cada tick do voo. É o
+		--que todo estado vanilla que teleporta o jogador usa (death_vinesave_pst em
+		--SGwilson.lua:3957, afogamento e queda em commonstates.lua).
+		--Os dois convivem: nenhum é lido no lugar do outro (builder.lua:630 e
+		--woby_rack.lua:78 checam os dois lado a lado).
+		tags = { "busy", "nointerrupt", "pausepredict", "nopredict", "nomorph", "nosleep", "jumping" },
 
 		--dest ~= nil => SALTO LIVRE (tecla), destino já calculado e validado por
 		--TryFreeJump. dest == nil => salto de parede, destino vem da ação bufferizada.
@@ -382,6 +398,12 @@ local function PatchStategraph(sg)
 		--manter os dois seria pedir e negar previsão no mesmo estado. A hop_pst vanilla
 		--também só tem "autopredict". Quem precisa de pausepredict é o estado de VOO, que
 		--é server-only de verdade.
+		--
+		--"nopredict" também é do VOO e NÃO pode ser repetido aqui, por mais que pareça
+		--coerente: lá ele manda o servidor jogar fora a posição VELHA que o cliente mandou
+		--antes do teleporte; aqui ele faria o servidor ignorar as posições NOVAS, que são
+		--justamente como o movimento volta a andar depois do salto. Seria desfazer no pouso
+		--o que "autopredict" existe para garantir.
 		tags = { "autopredict", "nomorph" },
 
 		--Quem retoma a corrida é o PlayerController, não este estado: no primeiro tick em
