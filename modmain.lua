@@ -359,7 +359,10 @@ end)
 STRINGS.CHARACTER_TITLES.wunny = "The Bunnylord, 2026"
 STRINGS.CHARACTER_NAMES.wunny = "Wunny MODED"
 STRINGS.CHARACTER_DESCRIPTIONS.wunny =
-"*Transforms into a beardlord\n*Befriends bunnyman\n*Is a Vegetarian\n*Has some perks of others survivors... you will have to find out"
+-- A última linha é o único ponto do jogo que anuncia a tecla H, e é ela que torna o resto
+-- dos atalhos descobrível: R/V/B não entram na tela de Controles por serem handlers de
+-- tecla do mod, não CONTROL_* do vanilla.
+"*Transforms into a beardlord\n*Befriends bunnyman\n*Is a Vegetarian\n*Has some perks of others survivors... you will have to find out\n*Press H in-game for her shortcuts"
 -- STRINGS.CHARACTER_QUOTES.wunny = "\"Quote\""
 STRINGS.CHARACTER_SURVIVABILITY.wunny = "Grim"
 
@@ -1833,6 +1836,38 @@ GLOBAL.TheInput:AddKeyDownHandler(GLOBAL.KEY_B, function()
     end
     if player:HasTag("wunny") then
         SendModRPCToServer(GetModRPC(modname, "wunny_bunnyform_toggle"))
+    end
+end)
+
+-- Tecla H: painel com a lista dos atalhos acima (ver scripts/widgets/wunny_helppanel.lua).
+-- R/V/B são AddKeyDownHandler do mod, não CONTROL_* do vanilla, então NÃO aparecem na tela
+-- de Controles do jogo e não há de onde consultá-los depois que a tela de seleção de
+-- personagem sai. Daí o painel.
+--
+-- Sem RPC, ao contrário do V e do B: aqui não há nada pra o servidor decidir nem validar,
+-- é só um widget desenhado na tela de quem apertou. Mandar RPC pra isso só gastaria banda.
+AddClassPostConstruct("widgets/controls", function(self)
+    -- prefab em vez de HasTag("wunny"): "controls" é construído uma vez pro jogador local,
+    -- e o prefab já está definido nesse ponto nos dois lados. Também evita depender do
+    -- shim de tags virtuais ter sido instalado antes da HUD.
+    if self.owner == nil or self.owner.prefab ~= "wunny" then
+        return
+    end
+    -- require só aqui dentro: se este arquivo fosse carregado no topo do modmain, ele
+    -- rodaria também no servidor dedicado, que não tem os widgets de HUD.
+    local WunnyHelpPanel = GLOBAL.require("widgets/wunny_helppanel")
+    self.wunny_helppanel = self:AddChild(WunnyHelpPanel(self.owner))
+end)
+
+GLOBAL.TheInput:AddKeyDownHandler(GLOBAL.KEY_H, function()
+    local player = GLOBAL.ThePlayer
+    -- HasInputFocus: sem isto, escrever "hoje" no chat abre e fecha o painel.
+    if player == nil or player.HUD == nil or player.HUD:HasInputFocus() then
+        return
+    end
+    local panel = player.HUD.controls ~= nil and player.HUD.controls.wunny_helppanel or nil
+    if panel ~= nil then
+        panel:Toggle()
     end
 end)
 
