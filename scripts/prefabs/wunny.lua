@@ -1892,6 +1892,14 @@ local common_postinit = function(inst)
 	-- (wormwood_sapling, wormwood_berrybush...), do ipecacsyrup, do
 	-- armor_lunarplant_husk e dos três pets mutantes roda em builder_replica.lua.
 	SkillWhitelists.Install(inst, SkillWhitelists.WORMWOOD)
+	-- WX-78: cliente também. Esta tabela morava inline no master_postinit, o que num
+	-- servidor dedicado deixava o cliente sem ela — e aí as oito receitas com
+	-- builder_skill="wx78_*" (corpo reserva, os quatro drones, os dois drones sombrios,
+	-- o gestalttrapper) sumiam do menu de crafting, as ações de mapa SWAPBODIES_MAP /
+	-- MAPSCOUTSELECT_MAP não eram oferecidas e o painel de módulos mostrava
+	-- can_unplug_any/has_shadow_affinity errados. Ver a tabela em
+	-- wunny_skill_whitelists.lua para a lista completa de consumidores.
+	SkillWhitelists.Install(inst, SkillWhitelists.WX78)
 
 	--Transformacao em bunnyman: o netvar tem de existir nos DOIS lados, senao o
 	--cliente nao tem como aplicar o bank/build e a Wunny continua parecendo a Wunny
@@ -3728,64 +3736,6 @@ local master_postinit = function(inst)
 	inst:ListenForEvent("onhitother", Wolfgang_OnHitOther)
 	inst:ListenForEvent("working", Wolfgang_OnDoingWork)
 	inst:ListenForEvent("tilling", Wolfgang_OnTilling)
-
-	-- wx78_moduledefs.lua (o arquivo vanilla dos módulos de upgrade, reaproveitado
-	-- via require("wx78_moduledefs") lá em cima) checa
-	-- inst.components.skilltreeupdater:IsActivated("wx78_circuitry_xxxbuffs_n")
-	-- pra decidir se um módulo alpha/beta/gama plugado ganha o bônus de tier
-	-- (calor, frio, taser, luz, música, xadrez, radar, digestão, blindagem...).
-	-- A Wunny já tem um componente skilltreeupdater real (adicionado por
-	-- player_common.lua pra todo personagem), só que nunca fica com nada
-	-- "ativado" de verdade porque ApplyAllSkillTreeEffects chama onactivate
-	-- direto, sem passar pelo fluxo normal de ActivateSkill. Como todas as
-	-- skills da Wunny são permanentes por design, sobrescrevemos só o
-	-- IsActivated (igual ao padrão já usado no mightiness com BecomeState) pra
-	-- devolver true nas tags de circuito da Wunny, sem afetar as checagens de
-	-- IsActivated de nenhuma outra skill/personagem.
-	-- Chassis (corpos reserva/revive fantasma), Drones (scout/delivery/zap) e
-	-- Allegiance (lunar/sombrio) usam exatamente o mesmo mecanismo: recipes.lua
-	-- (builder_skill=...), wx78_classified.lua (GetMaxBackupBodies,
-	-- GetNumFreeScoutingDrones) e skilltree_wx78.lua (onactivate dos módulos de
-	-- aliança/drone) só fazem sentido pra Wunny se essas tags também
-	-- devolverem true no IsActivated.
-	local WX78_CIRCUITRY_SKILLS_ALWAYSON = {
-		-- Circuitry
-		wx78_circuitry_betterunplug = true,
-		wx78_circuitry_bettercharge = true,
-		wx78_circuitry_alphabuffs_1 = true,
-		wx78_circuitry_alphabuffs_2 = true,
-		wx78_circuitry_betabuffs_1 = true,
-		wx78_circuitry_betabuffs_2 = true,
-		wx78_circuitry_gammabuffs_1 = true,
-		wx78_circuitry_gammabuffs_2 = true,
-		wx78_circuitry_slot_1 = true,
-		-- Chassis
-		wx78_extrabody_1 = true,
-		wx78_extrabody_2 = true,
-		wx78_extrabody_3 = true,
-		wx78_ghostrevive_1 = true,
-		wx78_ghostrevive_2 = true,
-		wx78_ghostrevive_3 = true,
-		wx78_remotebodyswap = true,
-		wx78_bodycircuits = true,
-		-- Drones
-		wx78_scoutdrone_1 = true,
-		wx78_extradronerange = true,
-		wx78_deliverydrone_1 = true,
-		wx78_deliverydrone_2 = true,
-		wx78_zapdrone_1 = true,
-		wx78_zapdrone_2 = true,
-		-- Allegiance
-		wx78_allegiance_lunar = true,
-		wx78_allegiance_shadow = true,
-	}
-	local skilltreeupdater_IsActivated_prev = inst.components.skilltreeupdater.IsActivated
-	function inst.components.skilltreeupdater:IsActivated(skill, ...)
-		if WX78_CIRCUITRY_SKILLS_ALWAYSON[skill] then
-			return true
-		end
-		return skilltreeupdater_IsActivated_prev(self, skill, ...)
-	end
 
 	--Winona (skill "winona_charlie_1"): os óculos rosados delegam a inspeção pra
 	--este componente do dono (hats.lua roseglasses_inspectpoint/inspecttarget).

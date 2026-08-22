@@ -1775,13 +1775,27 @@ end)
 -- Tecla R: liga/desliga a "toca-relâmpago" da Wunny (ver ToggleBurrowDash em
 -- wunny.lua). HasInputFocus() evita disparar enquanto o jogador está
 -- digitando no chat/console.
+--
+-- VIA RPC, pelo mesmo motivo do V e do B logo abaixo: inst.ToggleBurrowDash é definida
+-- no master_postinit de wunny.lua, ou seja, só existe na entidade do SERVIDOR. Em
+-- servidor local isso passa despercebido porque ThePlayer É a entidade do servidor;
+-- num dedicado o ThePlayer do cliente é o replica, onde o campo é nil — a tecla
+-- simplesmente não fazia nada e, por causa do "~= nil", também não deixava erro no log.
+AddModRPCHandler(modname, "wunny_burrowdash_toggle", function(player)
+    -- Validação toda no servidor (ver StartBurrowDash: nada de ativar em combate):
+    -- o cliente pode mandar este RPC à vontade e o pior que consegue é um no-op.
+    if player ~= nil and player:HasTag("wunny") and player.ToggleBurrowDash ~= nil then
+        player:ToggleBurrowDash()
+    end
+end)
+
 GLOBAL.TheInput:AddKeyDownHandler(GLOBAL.KEY_R, function()
     local player = GLOBAL.ThePlayer
     if player == nil or (player.HUD ~= nil and player.HUD:HasInputFocus()) then
         return
     end
-    if player:HasTag("wunny") and player.ToggleBurrowDash ~= nil then
-        player:ToggleBurrowDash()
+    if player:HasTag("wunny") then
+        SendModRPCToServer(GetModRPC(modname, "wunny_burrowdash_toggle"))
     end
 end)
 
@@ -1790,11 +1804,11 @@ end)
 -- combate, daí ser tecla e não ação de clique: não precisa de alvo, não abre menu e não
 -- disputa com o clique de ataque.
 --
--- POR QUE RPC E NÃO CHAMAR DIRETO como o toggle do KEY_R faz logo acima: aquele toggle
--- funciona porque em servidor local o ThePlayer É a entidade do servidor. Num servidor
--- dedicado (e este mod é all_clients_require_mod) o cliente só tem o "replica", que não
--- tem sg nem Physics — chamar direto ali não faria nada, ou pior, mexeria numa cópia
--- local e dessincronizaria. O RPC é o único caminho em que o servidor decide.
+-- POR QUE RPC E NÃO CHAMAR DIRETO no handler de tecla: em servidor local o ThePlayer É a
+-- entidade do servidor e a chamada direta funcionaria. Num servidor dedicado (e este mod
+-- é all_clients_require_mod) o cliente só tem o "replica", que não tem sg nem Physics —
+-- chamar direto ali não faria nada, ou pior, mexeria numa cópia local e dessincronizaria.
+-- O RPC é o único caminho em que o servidor decide.
 AddModRPCHandler(modname, "wunny_jumpfree", function(player)
     -- Toda a validação vive no servidor, dentro de TryFreeJump: o cliente pode mandar
     -- este RPC quando quiser, inclusive adulterado, e o pior que consegue é um "false".

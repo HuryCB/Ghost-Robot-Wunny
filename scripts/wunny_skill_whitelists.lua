@@ -4,7 +4,7 @@
 
 	POR QUE ISTO É UM ARQUIVO SEPARADO: mesma razão de wunny_wormwood_bloom.lua —
 	o chunk principal de prefabs/wunny.lua bateu no limite rígido do Lua 5.1 de
-	200 variáveis locais por função. As 5 tabelas + o instalador viram um único
+	200 variáveis locais por função. As 6 tabelas + o instalador viram um único
 	`require` lá. Ao portar o próximo personagem, adicione a tabela dele AQUI.
 
 	Install(inst, skills) é chamado no common_postinit (não no master_postinit)
@@ -181,7 +181,7 @@ local WILLOW_SKILLS_ALWAYSON = {
 -- lock, winona_lunar_3_lock) não entram: são só travas da UI da árvore.
 --
 -- Ao contrário da Willow, aqui as skills de aliança ENTRAM — segue o mesmo
--- critério já usado pra WX78 em master_postinit, que também libera as duas
+-- critério da tabela do WX78 mais abaixo, que também libera as duas
 -- alianças de uma vez. No vanilla charlie_2 e wagstaff_2 se travam mutuamente
 -- (ver lock_open em skilltree_winona.lua); a Wunny fica com as duas.
 --
@@ -401,6 +401,65 @@ local WORMWOOD_SKILLS_ALWAYSON = {
 	wormwood_allegiance_lunar_mutations_3 = true,
 }
 
+----------------------------------------------------------------------------------------
+-- WX-78: mesma ideia das tabelas acima. Esta tabela morava inline no master_postinit de
+-- wunny.lua; veio pra cá porque lá ela só existia NO SERVIDOR, e metade do que ela
+-- destrava é lida NO CLIENTE (ver a lista abaixo). Num servidor local isso passava
+-- despercebido — cliente e servidor são a mesma entidade.
+--
+--   wx78_moduledefs.lua (os módulos de upgrade alpha/beta/gama, reaproveitado via
+--     require("wx78_moduledefs")) checa IsActivated("wx78_circuitry_xxxbuffs_n") pra
+--     decidir se um módulo plugado ganha o bônus de tier (calor, frio, taser, luz,
+--     música, xadrez, radar, digestão, blindagem...) — servidor.
+--   recipes.lua builder_skill: wx78_backupbody (extrabody_1), wx78_drone_scout
+--     (scoutdrone_1), wx78_drone_delivery_item/_small_item (deliverydrone_1/2),
+--     wx78_drone_zap_remote (zapdrone_1), wx78_gestalttrapper (allegiance_lunar),
+--     wx78_shadowdrone_harvester/_debuffer (allegiance_shadow) — filtradas em
+--     builder_replica.lua:312, CLIENTE.
+--   wunny.lua Wortox_GetPointSpecialActions (ações de mapa SWAPBODIES_MAP e
+--     MAPSCOUTSELECT_MAP) roda no playeractionpicker, CLIENTE.
+--   widgets/upgrademodulesdisplay_inspecting.lua:237-246 (can_unplug_any,
+--     has_shadow_affinity) — CLIENTE.
+--   wx78_classified.lua:132 (GetNumFreeScoutingDrones) e skilltree_wx78.lua
+--     (onactivate dos módulos de aliança/drone).
+--
+-- Os nós "lock" não entram: são só travas da UI da árvore.
+----------------------------------------------------------------------------------------
+
+local WX78_SKILLS_ALWAYSON = {
+	-- Circuitry
+	wx78_circuitry_betterunplug = true,
+	wx78_circuitry_bettercharge = true,
+	wx78_circuitry_alphabuffs_1 = true,
+	wx78_circuitry_alphabuffs_2 = true,
+	wx78_circuitry_betabuffs_1 = true,
+	wx78_circuitry_betabuffs_2 = true,
+	wx78_circuitry_gammabuffs_1 = true,
+	wx78_circuitry_gammabuffs_2 = true,
+	wx78_circuitry_slot_1 = true,
+	-- Chassis
+	wx78_extrabody_1 = true,
+	wx78_extrabody_2 = true,
+	wx78_extrabody_3 = true,
+	wx78_ghostrevive_1 = true,
+	wx78_ghostrevive_2 = true,
+	wx78_ghostrevive_3 = true,
+	wx78_remotebodyswap = true,
+	wx78_bodycircuits = true,
+	-- Drones
+	wx78_scoutdrone_1 = true,
+	wx78_extradronerange = true,
+	wx78_deliverydrone_1 = true,
+	wx78_deliverydrone_2 = true,
+	wx78_zapdrone_1 = true,
+	wx78_zapdrone_2 = true,
+	-- Allegiance
+	wx78_allegiance_lunar = true,
+	wx78_allegiance_shadow = true,
+}
+
+----------------------------------------------------------------------------------------
+
 local function Wunny_InstallSkillWhitelist(inst, skills)
 	local skilltreeupdater = inst.components.skilltreeupdater
 	if skilltreeupdater == nil then
@@ -421,5 +480,6 @@ return {
 	WINONA   = WINONA_SKILLS_ALWAYSON,
 	WALTER   = WALTER_SKILLS_ALWAYSON,
 	WORMWOOD = WORMWOOD_SKILLS_ALWAYSON,
+	WX78     = WX78_SKILLS_ALWAYSON,
 	Install  = Wunny_InstallSkillWhitelist,
 }
