@@ -18,17 +18,21 @@ local assets =
 
 local prefabs =
 {
-	"globalmapiconseeable",
+	"wunny_burrow_mapicon",
 }
 
 -- Mesmo padrão do wormhole.lua vanilla: o MiniMapEntity direto na própria
 -- estrutura não é suficiente pra garantir um ícone visível/persistente no
--- mapa (fica sujeito à resolução do snapshot de terreno). O "globalmapiconseeable"
--- é uma entidade de rastreamento dedicada, sempre desenhada por cima, que é
--- o mecanismo real usado por wormhole/wx78_backupbody/etc. pra aparecerem no mapa.
+-- mapa (fica sujeito à resolução do snapshot de terreno). Uma entidade de
+-- rastreamento dedicada, sempre desenhada por cima, é o mecanismo real usado por
+-- wormhole/wx78_backupbody/etc. pra aparecerem no mapa.
+--
+-- Aqui ela é o "wunny_burrow_mapicon" e não o "globalmapiconseeable" vanilla: é esse
+-- ícone que entra no lookup de FindClosestMapIconInRange nos DOIS lados, e é isso que
+-- faz o botão direito no mapa existir para quem não é o host. O porquê completo está
+-- no cabeçalho de scripts/prefabs/wunny_burrow_mapicon.lua.
 local function CreateHiddenGlobalIcon(inst)
-	inst.hiddenglobalicon = SpawnPrefab("globalmapiconseeable")
-	inst.hiddenglobalicon.MiniMapEntity:SetPriority(5)
+	inst.hiddenglobalicon = SpawnPrefab("wunny_burrow_mapicon")
 	-- Ícone pelo 3º argumento, não por um SetIcon antes: TrackEntity sempre
 	-- redefine o ícone (globalmapicon.lua:11). Aqui o CopyIcon do MiniMapEntity
 	-- desta estrutura até funcionaria, mas passar explícito deixa as duas tocas
@@ -84,12 +88,9 @@ local function fn()
 	inst:AddComponent("hauntable")
 	inst.components.hauntable:SetHauntValue(TUNING.HAUNT_SMALL)
 
-	-- registra no lookup global usado por ACTIONS.WUNNY_BURROWTRAVEL_MAP
-	-- (FindClosestMapIconInRange busca por esse nome; os rabbitholes vanilla
-	-- também se registram aqui, ver AddPrefabPostInit("rabbithole") em
-	-- modmain.lua, formando uma rede única de tocas).
-	RegisterGlobalMapIcon(inst, "wunny_burrow_network")
-
+	-- Quem entra no lookup "wunny_burrow_network" é o ÍCONE criado logo abaixo, não esta
+	-- estrutura: registrar aqui só popularia a tabela do servidor (esta linha está
+	-- depois do gate de ismastersim) e ainda daria duas entradas na mesma posição.
 	inst:DoTaskInTime(0, CreateHiddenGlobalIcon)
 	inst.OnRemoveEntity = OnRemoveEntity
 

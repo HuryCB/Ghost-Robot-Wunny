@@ -1173,6 +1173,66 @@ local function Wortox_CanSoulhop(inst, souls)
 	return false
 end
 
+-- Tela do mapa: se existe alguma ação map_only VÁLIDA sob o cursor, tira da lista tudo
+-- que não é map_only.
+--
+-- PlayerController:GetMapActions (playercontroller.lua:5185) percorre esta lista JÁ
+-- ORDENADA POR PRIORIDADE e desiste de escolher ação de mapa no primeiro item que não é
+-- map_only:
+--
+--     if v.action.map_only then ... else ba_end = true end
+--
+-- Toda ação map_only tem priority 0, então qualquer ação comum com prioridade maior — ou
+-- empatada, porque table.sort não garante ordem entre iguais — se enfia na frente e
+-- inutiliza TODAS elas de uma vez. Na Wunny, que junta o kit de vários personagens numa
+-- pointspecialactionsfn só, isso acontece com:
+--
+--   BLINK   (priority 10) salto de alma do Wortox, sempre que há alma no bolso
+--   TOSS    (priority 1)  arremesso da tocha do Wilson (skill wilson_torch_7)
+--   WHISTLE (priority 0)  assobio pra Woby, no controle (empate, ordem indefinida)
+--
+-- e o sintoma é o mesmo nos três: botão direito no mapa vira outra coisa, ou não faz
+-- nada quando a outra coisa também não pode acontecer (ex.: almas insuficientes fazem
+-- ACTIONS_MAP_REMAP[BLINK] devolver nil, e aí não sobra ação nenhuma).
+--
+-- LOOKAT dos óculos rosados tem priority -3, então cai depois das ações de mapa e nunca
+-- chega a atrapalhar — mas entra no filtro do mesmo jeito, por uniformidade.
+--
+-- Filtrar em vez de não inserir é de propósito: GetMapActions junta TODAS as map_only da
+-- lista (mesmo as inválidas) em `mapactions` e manda pra MapScreen:SetInherentMapActions,
+-- que é o que desenha as decorações estáticas do mapa — os drones do MAPSCOUTSELECT_MAP e
+-- os corpos reserva do SWAPBODIES_MAP (mapscreen.lua:563-571). Se a gente só inserisse a
+-- ação quando ela estivesse válida sob o cursor, esses marcadores sumiriam do mapa.
+--
+-- Subir a prioridade das ações de mapa NÃO resolveria: elas virariam forced_rmbact
+-- sempre, e como RemapMapAction devolve nil quando a checagem falha
+-- (playercontroller.lua:5130), o salto de alma pelo mapa morreria em todo lugar onde não
+-- há alvo de ação de mapa.
+local function Wunny_FilterMapOnlyActions(inst, actions)
+	local mappos = inst.checkingmapactions_pos or inst:GetPosition()
+
+	local hasvalid = false
+	for _, act in ipairs(actions) do
+		if act.map_only and act.maponly_checkvalidpos_fn ~= nil
+			and act.maponly_checkvalidpos_fn(BufferedAction(inst, nil, act, nil, mappos)) then
+			hasvalid = true
+			break
+		end
+	end
+
+	if not hasvalid then
+		return actions
+	end
+
+	local filtered = {}
+	for _, act in ipairs(actions) do
+		if act.map_only then
+			table.insert(filtered, act)
+		end
+	end
+	return filtered
+end
+
 local function Wortox_GetPointSpecialActions(inst, pos, useitem, right, usereticulepos)
 	local actions = {}
 	-- O bloco da tocha do Wilson mais abaixo sobrescreve `useitem` com o item da
@@ -1181,10 +1241,20 @@ local function Wortox_GetPointSpecialActions(inst, pos, useitem, right, useretic
 	local orig_useitem = useitem
 	if right and useitem == nil then
 		if inst.checkingmapactions then
+			-- Todas as ações de mapa abaixo entram sem checar validade aqui: quem
+			-- resolve isso é Wunny_FilterMapOnlyActions no fim desta função (que
+			-- também é quem impede o BLINK de engolir as três). Elas são todas
+			-- map_only, então convivem sem se anular — o desempate entre elas é por
+			-- distância até o clique, feito pelo próprio GetMapActions.
 			local canblink = inst:CanBlinkFromWithMap(inst.checkingmapactions_pos or inst:GetPosition())
 			if canblink and inst.CanSoulhop and inst:CanSoulhop() then
 				table.insert(actions, ACTIONS.BLINK)
 			end
+
+			-- Rede de tocas (fast-travel): habilidade original da Wunny, sem gate de
+			-- skill tree. A validade real (existe uma toca perto do clique?) está em
+			-- ACTIONS.WUNNY_BURROWTRAVEL_MAP.maponly_checkvalidpos_fn.
+			table.insert(actions, ACTIONS.WUNNY_BURROWTRAVEL_MAP)
 
 			-- wx78 (Chassis/Drones): ações de mapa "trocar de corpo remotamente"
 			-- e "escolher drone de escaneamento" — mesma checagem vanilla de
@@ -1197,11 +1267,6 @@ local function Wortox_GetPointSpecialActions(inst, pos, useitem, right, useretic
 					table.insert(actions, ACTIONS.MAPSCOUTSELECT_MAP)
 				end
 			end
-
-			-- Rede de tocas (fast-travel): habilidade original da Wunny, sem
-			-- gate de skill tree. A validade real (existe uma toca perto do
-			-- clique?) é resolvida em ACTIONS.WUNNY_BURROWTRAVEL_MAP.maponly_checkvalidpos_fn.
-			table.insert(actions, ACTIONS.WUNNY_BURROWTRAVEL_MAP)
 		else
 			local canblink = inst:CanBlinkTo(pos)
 			if canblink and inst.CanSoulhop and inst:CanSoulhop() then
@@ -1294,6 +1359,19 @@ local function Wortox_GetPointSpecialActions(inst, pos, useitem, right, useretic
 		inst:HasWhistleAction()
 	then
 		table.insert(actions, ACTIONS.WHISTLE)
+	end
+
+	-- ÚLTIMA COISA da função, depois de TODOS os blocos acima: os três últimos (tocha
+	-- do Wilson, óculos da Winona, assobio do Walter) ficam fora do
+	-- "if right and useitem == nil" e portanto também rodam com o mapa aberto —
+	-- é por isso que o filtro mora aqui embaixo e não dentro do ramo de mapa.
+	--
+	-- O único caminho que escapa é o `return actions, pos2` do bloco dos óculos, e
+	-- ele só existe quando usereticulepos é verdadeiro. A coleta do mapa
+	-- (playercontroller.lua:5177) chama GetPointSpecialActions(position, nil, true),
+	-- sem esse 5º argumento, então aquele return nunca acontece com o mapa aberto.
+	if inst.checkingmapactions then
+		actions = Wunny_FilterMapOnlyActions(inst, actions)
 	end
 
 	return actions

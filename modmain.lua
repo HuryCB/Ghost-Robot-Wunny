@@ -52,6 +52,7 @@ PrefabFiles = {
     "wunnyslingshot",
     "wunnyicebox",
     "wunny_burrow",
+    "wunny_burrow_mapicon",
     "wunny_burrowdash_fx",
     "wunny_burrowdash_rabbit_fx",
     -- "beardlordback"
@@ -1575,18 +1576,16 @@ AddPrefabPostInit("rabbithole", function(inst)
     inst.components.workable:SetOnFinishCallback(dig_up)
 
     -- Rede de tocas (fast-travel): todo rabbithole do mundo (selvagem ou
-    -- construído) entra na mesma rede que wunny_burrow.lua usa, registrado
-    -- sob o mesmo nome lógico "wunny_burrow_network" (ver
-    -- FindClosestMapIconInRange em ACTIONS.WUNNY_BURROWTRAVEL_MAP). O ícone
-    -- no mapa usa o mesmo "globalmapiconseeable" que o wormhole vanilla usa,
-    -- já que MiniMapEntity não pode ser adicionado depois de SetPristine
-    -- (não temos MiniMapEntity próprio no rabbithole, só essa entidade de
-    -- rastreamento separada).
-    GLOBAL.RegisterGlobalMapIcon(inst, "wunny_burrow_network")
-
+    -- construído) entra na mesma rede que wunny_burrow.lua usa, sob o mesmo nome
+    -- lógico "wunny_burrow_network" (ver FindClosestMapIconInRange em
+    -- ACTIONS.WUNNY_BURROWTRAVEL_MAP). Quem se registra nesse nome é a entidade de
+    -- rastreamento ("wunny_burrow_mapicon"), não o rabbithole: o registro é uma
+    -- tabela Lua por VM, e este bloco todo está depois do gate de ismastersim, então
+    -- registrar o rabbithole aqui deixaria a tabela do CLIENTE vazia — e é o cliente
+    -- quem valida a ação de mapa antes de mandar o clique (ver o cabeçalho de
+    -- scripts/prefabs/wunny_burrow_mapicon.lua).
     inst:DoTaskInTime(0, function(inst)
-        inst.hiddenglobalicon = GLOBAL.SpawnPrefab("globalmapiconseeable")
-        inst.hiddenglobalicon.MiniMapEntity:SetPriority(5)
+        inst.hiddenglobalicon = GLOBAL.SpawnPrefab("wunny_burrow_mapicon")
         -- O ícone TEM que ir como 3º argumento do TrackEntity, não num SetIcon
         -- antes: TrackEntity (globalmapicon.lua:11) sempre define o ícone dele
         -- mesmo, e sem esse argumento cai no ramo final
