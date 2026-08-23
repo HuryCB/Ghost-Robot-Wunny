@@ -155,6 +155,14 @@ local TECH = GLOBAL.TECH
 local _G = GLOBAL
 local ACTIONS = GLOBAL.ACTIONS
 local ActionHandler = GLOBAL.ActionHandler
+
+-- Blindagem contra o crash de "Mod component actions are out of sync" (o motivo
+-- completo está no cabeçalho de wunny_modactionguard.lua). Fica AQUI EM CIMA, nas duas
+-- pontas: quem crasha é o cliente (componentactions.lua:3243, via a string de DROP do
+-- hoverer), mas UnregisterComponentActions (3160) tem o mesmo defeito e roda no
+-- servidor a cada RemoveComponent. É só um guard de nil — não muda comportamento
+-- nenhum quando a lista de mods do cliente e a do servidor batem.
+require("wunny_modactionguard").Install()
 -- local BunnyKingManager = require("components/bunnykingmanager")
 -- _G.speedMultiplier = 1
 
